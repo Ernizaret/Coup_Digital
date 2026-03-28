@@ -60,29 +60,32 @@ class Game:
     def play_turn(self, player):
         print(f"{player.name}'s turn. Coins: {player.coins}, Influence: {player.influence}")
         if player.coins < 3:
-            print("Type 1 to Income"
-                  "Type 2 to Foreign Aid"
-                  "Type 3 to Tax"
-                  "Type 4 to Steal"
-                  "Type 5 to Exchange")
+            print(f"Type 1 to Income")
+            print(f"Type 2 to Foreign Aid")
+            print(f"Type 3 to Tax")
+            print(f"Type 4 to Steal")
+            print(f"Type 5 to Exchange")
             choice = int(input())
+            
         elif player.coins >= 3 and player.coins < 7:
-            print("Type 1 to Income"
-                  "Type 2 to Foreign Aid"
-                  "Type 3 to Tax"
-                  "Type 4 to Steal"
-                  "Type 5 to Exchange"
-                  "Type 6 to Assassinate")
+            print(f"Type 1 to Income")
+            print(f"Type 2 to Foreign Aid")
+            print(f"Type 3 to Tax")
+            print(f"Type 4 to Steal")
+            print(f"Type 5 to Exchange")
+            print(f"Type 6 to Assassinate")
             choice = int(input())
+            
         elif player.coins >= 7 and player.coins <= 10:
-            print("Type 1 to Income"
-                  "Type 2 to Foreign Aid"
-                  "Type 3 to Tax"
-                  "Type 4 to Steal"
-                  "Type 5 to Exchange"
-                  "Type 6 to Assassinate"
-                  "Type 7 to Coup")
+            print(f"Type 1 to Income")
+            print(f"Type 2 to Foreign Aid")
+            print(f"Type 3 to Tax")
+            print(f"Type 4 to Steal")
+            print(f"Type 5 to Exchange")
+            print(f"Type 6 to Assassinate")
+            print(f"Type 7 to Coup")
             choice = int(input())
+            
         elif player.coins > 10:
             print("More than 10 coins. You must Coup.")
             choice = 7
@@ -98,17 +101,15 @@ def main():
         print("Maximum number of players is 6. Defaulting to 6 players.")
         num_players = 6
         
-    if num_players < 1:
-        print("Minimum number of players is 1. Defaulting to 1 player.")
-        num_players = 1
+    if num_players < 2:
+        print("Minimum number of players is 2. Defaulting to 2 players.")
+        num_players = 2
 
     for i in range(num_players):
         print(f"Please enter name of player {i+1}:")
         name = input()
         player = Player(name)
         players.append(player)
-    for i in range(6-num_players):
-        players.append(Player(f"Bot {i+1}"))
         
     print("Let's deal")
     
@@ -119,8 +120,19 @@ def main():
         print(f"{player.name}: {player.influence}")
     for card in game.deck.cards:
         print(f"Court Deck: {card}")
-        
-    
-        
+
+    while True:
+        living_players = [p for p in game.players if p.is_alive()]
+        if len(living_players) == 1:
+            print(f"{living_players[0].name} wins!")
+            break
+        for player in game.players:
+            if player.is_alive():
+                game.play_turn(player)
+                # Check for winner after each turn
+                living_players = [p for p in game.players if p.is_alive()]
+                if len(living_players) == 1:
+                    break
+
 if __name__ =="__main__":
     main()
