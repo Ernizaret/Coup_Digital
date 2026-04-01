@@ -1,157 +1,44 @@
-##Actions:
-##Income: Gain 1 coin.
-##Foreign Aid: Gain 2 coins.
-##Coup: Spend 7 coins to remove an influence from another player.
-##Tax: Gain 3 coins.
-##Assassinate: Spend 3 coins to remove an influence from another player.
-##Steal: Remove at most 2 coins from another player. Gain coins equal to amount removed from another player.
-##Exchange: Gain two influence. Lose two influence of your choosing.
+"""Pure action functions for Coup. No I/O — just mutate game state."""
 
-class Action:
-    def __init__(self, game, player, choice):
-        self.game = game
-        actions = {1: self.income,
-                  2: self.foreign_aid,
-                  3: self.tax,
-                  4: self.steal,
-                  5: self.exchange,
-                  6: self.assassinate,
-                  7: self.coup}
-        action = actions.get(choice)
-        if action:
-            action(player)
 
-    def income(self, player):
-        print(f"{player.name} takes Income.")
-        player.coins += 1
+def do_income(game, player):
+    player.coins += 1
 
-    def foreign_aid(self, player):
-        print(f"{player.name} attempts to take Foreign Aid.")
-        blocked = self.game.attempt_block(player, None, ["Duke"])
-        if not blocked:
-            player.coins += 2
 
-    def tax(self, player):
-        claimed_card = "Duke"
-        print(f"{player.name} claims {claimed_card}.")
-        blocked = self.game.challenge(player, claimed_card)
-        if not blocked:
-            player.coins += 3
+def do_foreign_aid(game, player):
+    player.coins += 2
 
-    def steal(self, player):
-        claimed_card = "Captain"
-        print(f"{player.name} claims {claimed_card}.")
 
-        valid_targets = {i: p for i, p in enumerate(self.game.players) if p != player and p.is_alive()}
-        while True:
-            print("Choose a player to steal from:")
-            for i, p in valid_targets.items():
-                print(f"  {i}: {p.name} (Coins: {p.coins})")
-            try:
-                target_index = int(input())
-                if target_index in valid_targets:
-                    break
-            except ValueError:
-                pass
-            print("Invalid input. Please try again.")
-        target_player = self.game.players[target_index]
+def do_tax(game, player):
+    player.coins += 3
 
-        if target_player.coins == 0:
-            print(f"{target_player.name} has no coins to steal. Please choose another player.")
-            return
 
-        blocked = self.game.challenge(player, claimed_card)
-        if not blocked:
-            blocked = self.game.attempt_block(player, target_player, ["Ambassador", "Captain"])
-        if not blocked:
-            if target_player.coins == 1: stolen_coins = 1
-            else: stolen_coins = 2
+def do_steal(game, player, target):
+    stolen = min(2, target.coins)
+    target.coins -= stolen
+    player.coins += stolen
+    return stolen
 
-            target_player.coins -= stolen_coins
-            player.coins += stolen_coins
-            print(f"{player.name} stole {stolen_coins} coins from {target_player.name}.")
 
-    def exchange(self, player):
-        claimed_card = "Ambassador"
-        print(f"{player.name} claims {claimed_card}.")
+def do_assassinate(game, player):
+    """Coins are deducted when the action is chosen (before challenge/block).
+    The actual influence loss is handled by the controller via lose_influence."""
+    pass
 
-        blocked = self.game.challenge(player, claimed_card)
-        if not blocked:
-            player.add_influence(self.game.deck.draw())
-            player.add_influence(self.game.deck.draw())
 
-            while True:
-                print("Choose first card to return:")
-                for i, card in enumerate(player.influence):
-                    print(f"  {i}: {card}")
-                try:
-                    lose_index_1 = int(input())
-                    if 0 <= lose_index_1 < len(player.influence):
-                        break
-                except ValueError:
-                    pass
-                print("Invalid input. Please try again.")
-            lost_card_1 = player.influence[lose_index_1]
-            player.lose_influence(lost_card_1)
-            self.game.deck.return_card(lost_card_1)
-            print(f"{lost_card_1} has been returned to the court deck.")
+def do_coup_action(game, player):
+    """Coins are deducted when the action is chosen.
+    The actual influence loss is handled by the controller via lose_influence."""
+    pass
 
-            while True:
-                print("Choose second card to return:")
-                for i, card in enumerate(player.influence):
-                    print(f"  {i}: {card}")
-                try:
-                    lose_index_2 = int(input())
-                    if 0 <= lose_index_2 < len(player.influence):
-                        break
-                except ValueError:
-                    pass
-                print("Invalid input. Please try again.")
-            lost_card_2 = player.influence[lose_index_2]
-            player.lose_influence(lost_card_2)
-            self.game.deck.return_card(lost_card_2)
-            print(f"{lost_card_2} has been returned to the court deck.")
 
-    def assassinate(self, player):
-        player.coins -= 3
-        claimed_card = "Assassin"
-        print(f"{player.name} claims {claimed_card}.")
+def do_exchange_draw(game, player):
+    """Draw 2 cards from the deck into the player's hand."""
+    player.add_influence(game.deck.draw())
+    player.add_influence(game.deck.draw())
 
-        valid_targets = {i: p for i, p in enumerate(self.game.players) if p != player and p.is_alive()}
-        while True:
-            print("Choose a player to assassinate:")
-            for i, p in valid_targets.items():
-                print(f"  {i}: {p.name}")
-            try:
-                target_index = int(input())
-                if target_index in valid_targets:
-                    break
-            except ValueError:
-                pass
-            print("Invalid input. Please try again.")
-        target_player = self.game.players[target_index]
 
-        blocked = self.game.challenge(player, claimed_card)
-        if not blocked:
-            blocked = self.game.attempt_block(player, target_player, ["Contessa"])
-        if not blocked:
-            self.game.lose_influence(target_player)
-
-    def coup(self, player):
-        player.coins -= 7
-
-        valid_targets = {i: p for i, p in enumerate(self.game.players) if p != player and p.is_alive()}
-        while True:
-            print("Choose a player to coup:")
-            for i, p in valid_targets.items():
-                print(f"  {i}: {p.name}")
-            try:
-                target_index = int(input())
-                if target_index in valid_targets:
-                    break
-            except ValueError:
-                pass
-            print("Invalid input. Please try again.")
-        target_player = self.game.players[target_index]
-
-        self.game.lose_influence(target_player)
+def do_exchange_return(game, player, card_name):
+    """Return one card from the player's hand to the deck."""
+    player.lose_influence(card_name)
+    game.deck.return_card(card_name)
