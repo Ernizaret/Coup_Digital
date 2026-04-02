@@ -34,6 +34,10 @@ ACTION_INFO = {
 
 class GameController:
     def __init__(self):
+        self.reset()
+
+    def reset(self):
+        """Reset all controller state to start a fresh game."""
         self.state = State.SETUP_PLAYER_COUNT
         self.game = None
         self.log = []
@@ -90,6 +94,8 @@ class GameController:
                 available.append(name)
             if p.coins >= 10:
                 available = ["Coup"]
+                return (f"{p.name}'s turn (Coins: {p.coins}). You must Coup!",
+                        available)
             return (f"{p.name}'s turn (Coins: {p.coins}). Choose an action:",
                     available)
 
@@ -566,4 +572,4 @@ class GameController:
 
     def _handle_game_over(self, value):
         if value == "New Game":
-            self.__init__()
+            self.reset()

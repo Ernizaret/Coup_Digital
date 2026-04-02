@@ -20,17 +20,6 @@ def do_steal(game, player, target):
     return stolen
 
 
-def do_assassinate(game, player):
-    """Coins are deducted when the action is chosen (before challenge/block).
-    The actual influence loss is handled by the controller via lose_influence."""
-    pass
-
-
-def do_coup_action(game, player):
-    """Coins are deducted when the action is chosen.
-    The actual influence loss is handled by the controller via lose_influence."""
-    pass
-
 
 def do_exchange_draw(game, player):
     """Draw 2 cards from the deck into the player's hand."""

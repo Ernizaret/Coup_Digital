@@ -3,7 +3,7 @@ My attempt at creating a digital version of the game Coup
 
   How to run
 
-  python -m src.UI
+  python -m src.ui
 
   Verified flows
 
