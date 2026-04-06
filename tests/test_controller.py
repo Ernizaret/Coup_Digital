@@ -418,5 +418,101 @@ class TestGetPrompt(unittest.TestCase):
         self.assertEqual(msg, "Unknown state")
 
 
+class TestGetActivePlayer(unittest.TestCase):
+    def test_setup_returns_none(self):
+        gc = GameController()
+        self.assertIsNone(gc.get_active_player())
+
+    def test_setup_name_returns_none(self):
+        gc = GameController()
+        gc.handle_input("2")
+        self.assertEqual(gc.state, State.SETUP_PLAYER_NAME)
+        self.assertIsNone(gc.get_active_player())
+
+    def test_choose_action_returns_current(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        self.assertIs(gc.get_active_player(), gc.current_player)
+
+    def test_choose_target_returns_current(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        gc.handle_input("Steal")
+        self.assertEqual(gc.state, State.CHOOSE_TARGET)
+        self.assertIs(gc.get_active_player(), gc.current_player)
+
+    def test_challenge_query_returns_candidate(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        gc.handle_input("Tax")
+        self.assertEqual(gc.state, State.CHALLENGE_QUERY)
+        expected = gc.challenge_candidates[0]
+        self.assertIs(gc.get_active_player(), expected)
+
+    def test_challenge_query_returns_all_candidates(self):
+        gc = GameController()
+        gc.handle_input("3")
+        gc.handle_input("Alice")
+        gc.handle_input("Bob")
+        gc.handle_input("Charlie")
+        gc.handle_input("Tax")
+        self.assertEqual(gc.state, State.CHALLENGE_QUERY)
+        active = gc.get_active_players()
+        self.assertEqual(len(active), 2)
+        self.assertIn(gc.game.players[1], active)  # Bob
+        self.assertIn(gc.game.players[2], active)  # Charlie
+
+    def test_block_query_returns_candidate(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        gc.handle_input("Foreign Aid")
+        self.assertEqual(gc.state, State.BLOCK_QUERY)
+        expected = gc.block_candidates[0]
+        self.assertIs(gc.get_active_player(), expected)
+
+    def test_challenge_block_query_returns_candidate(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        gc.handle_input("Foreign Aid")
+        gc.handle_input("Block with Duke")
+        self.assertEqual(gc.state, State.CHALLENGE_BLOCK_QUERY)
+        expected = gc.challenge_candidates[0]
+        self.assertIs(gc.get_active_player(), expected)
+
+    def test_lose_influence_returns_loser(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        alice = gc.game.players[0]
+        alice.influence = ["Captain", "Contessa"]
+        gc.handle_input("Tax")
+        gc.handle_input("Yes")
+        self.assertEqual(gc.state, State.LOSE_INFLUENCE)
+        self.assertIs(gc.get_active_player(), gc.lose_influence_player)
+
+    def test_exchange_return_returns_current(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        gc.handle_input("Exchange")
+        gc.handle_input("No")
+        self.assertEqual(gc.state, State.EXCHANGE_RETURN_FIRST)
+        self.assertIs(gc.get_active_player(), gc.current_player)
+        card = gc.current_player.influence[0]
+        gc.handle_input(card)
+        self.assertEqual(gc.state, State.EXCHANGE_RETURN_SECOND)
+        self.assertIs(gc.get_active_player(), gc.current_player)
+
+    def test_game_over_returns_none(self):
+        gc = GameController()
+        setup_two_player_game(gc)
+        alice = gc.game.players[0]
+        bob = gc.game.players[1]
+        alice.coins = 7
+        bob.influence = ["Duke"]
+        gc.handle_input("Coup")
+        gc.handle_input("Bob")
+        self.assertEqual(gc.state, State.GAME_OVER)
+        self.assertIsNone(gc.get_active_player())
+
+
 if __name__ == "__main__":
     unittest.main()
