@@ -41,6 +41,7 @@ class GameController:
         self.state = State.SETUP_PLAYER_COUNT
         self.game = None
         self.log = []
+        self.chat_messages = []   # list of (player_name, text) tuples
 
         # Setup tracking
         self.num_players = 0
@@ -73,6 +74,10 @@ class GameController:
 
     def _log(self, msg):
         self.log.append(msg)
+
+    def send_chat(self, player_name, text):
+        """Add a chat message visible to all players."""
+        self.chat_messages.append((player_name, text))
 
     # ------------------------------------------------------------------
     # Helper: first unresponded candidate

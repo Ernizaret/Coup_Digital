@@ -174,16 +174,46 @@ class PlayerWindow:
         self.entry_btn.pack(side=tk.LEFT)
         self.entry.bind("<Return>", lambda e: self._on_entry_submit())
 
-        # Bottom: scrollable game log
+        # Bottom half: game log (left) and chat (right) side by side
+        self.bottom_frame = tk.Frame(self.window)
+        self.bottom_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        # Game log (left)
+        log_frame = tk.LabelFrame(self.bottom_frame, text="Game Log")
+        log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+
         self.log_text = scrolledtext.ScrolledText(
-            self.window, height=12, state=tk.DISABLED,
+            log_frame, height=12, state=tk.DISABLED,
             font=("Courier", 10), wrap=tk.WORD)
-        self.log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+
+        # Chat (right)
+        chat_frame = tk.LabelFrame(self.bottom_frame, text="Chat")
+        chat_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+
+        self.chat_text = scrolledtext.ScrolledText(
+            chat_frame, height=12, state=tk.DISABLED,
+            font=("Courier", 10), wrap=tk.WORD)
+        self.chat_text.pack(fill=tk.BOTH, expand=True)
+
+        chat_input_frame = tk.Frame(chat_frame)
+        chat_input_frame.pack(fill=tk.X, pady=(4, 0))
+
+        self.chat_var = tk.StringVar()
+        self.chat_entry = tk.Entry(chat_input_frame, textvariable=self.chat_var,
+                                   font=("Helvetica", 10))
+        self.chat_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
+        self.chat_entry.bind("<Return>", lambda e: self._on_chat_send())
+
+        self.chat_send_btn = tk.Button(chat_input_frame, text="Send",
+                                       command=self._on_chat_send)
+        self.chat_send_btn.pack(side=tk.LEFT)
 
     def refresh(self):
         self._refresh_players()
         self._refresh_prompt()
         self._refresh_log()
+        self._refresh_chat()
 
     def _refresh_players(self):
         for frame, _, _ in self.player_panels:
@@ -294,6 +324,21 @@ class PlayerWindow:
             self.log_text.insert(tk.END, line + "\n")
         self.log_text.see(tk.END)
         self.log_text.config(state=tk.DISABLED)
+
+    def _refresh_chat(self):
+        self.chat_text.config(state=tk.NORMAL)
+        self.chat_text.delete("1.0", tk.END)
+        for name, text in self.controller.chat_messages:
+            self.chat_text.insert(tk.END, f"{name}: {text}\n")
+        self.chat_text.see(tk.END)
+        self.chat_text.config(state=tk.DISABLED)
+
+    def _on_chat_send(self):
+        text = self.chat_var.get().strip()
+        if text:
+            self.controller.send_chat(self.player.name, text)
+            self.chat_var.set("")
+            self.app.refresh_all_player_windows()
 
     def _on_button_click(self, value):
         self.controller.handle_input(value, self.player)
