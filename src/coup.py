@@ -32,8 +32,8 @@ class Game:
         if acting_player.has_influence(claimed_card):
             # Challenge fails — acting player had the card
             acting_player.lose_influence(claimed_card)
-            self.deck.return_card(claimed_card)
             acting_player.add_influence(self.deck.draw())
+            self.deck.return_card(claimed_card)
             return (False, challenger)
         else:
             # Challenge succeeds — acting player was bluffing

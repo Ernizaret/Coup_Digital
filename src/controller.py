@@ -56,12 +56,12 @@ class GameController:
         self.pending_claimed_card = None
         self.pending_blockable_cards = None
 
-        # Challenge/block walk state
+        # Challenge/block state (simultaneous — all candidates prompted at once)
         self.challenge_candidates = []   # players who can challenge
-        self.challenge_index = 0         # which candidate we're asking
+        self.challenge_responded = set() # players who have declined to challenge
 
         self.block_candidates = []       # players who can block
-        self.block_index = 0
+        self.block_responded = set()     # players who have declined to block
 
         # For block challenges
         self.blocker = None
@@ -75,9 +75,24 @@ class GameController:
         self.log.append(msg)
 
     # ------------------------------------------------------------------
+    # Helper: first unresponded candidate
+    # ------------------------------------------------------------------
+    def _first_unresponded_challenge_candidate(self):
+        for p in self.challenge_candidates:
+            if p not in self.challenge_responded:
+                return p
+        return None
+
+    def _first_unresponded_block_candidate(self):
+        for p in self.block_candidates:
+            if p not in self.block_responded:
+                return p
+        return None
+
+    # ------------------------------------------------------------------
     # get_prompt() — returns (message, options) for the UI to render
     # ------------------------------------------------------------------
-    def get_prompt(self):
+    def get_prompt(self, player=None):
         if self.state == State.SETUP_PLAYER_COUNT:
             return ("How many players? (2-6)", ["2", "3", "4", "5", "6"])
 
@@ -106,13 +121,13 @@ class GameController:
             return (f"Choose a target to {verb}:", options)
 
         elif self.state == State.CHALLENGE_QUERY:
-            candidate = self.challenge_candidates[self.challenge_index]
+            candidate = player if player else self._first_unresponded_challenge_candidate()
             return (f"{candidate.name}: Challenge {self.current_player.name}'s "
                     f"{self.pending_claimed_card}?",
                     ["Yes", "No"])
 
         elif self.state == State.BLOCK_QUERY:
-            candidate = self.block_candidates[self.block_index]
+            candidate = player if player else self._first_unresponded_block_candidate()
             cards = self.pending_blockable_cards
             options = ["Don't block"] + [f"Block with {c}" for c in cards]
             return (f"{candidate.name}: Block {self.current_player.name}'s "
@@ -120,7 +135,7 @@ class GameController:
                     options)
 
         elif self.state == State.CHALLENGE_BLOCK_QUERY:
-            candidate = self.challenge_candidates[self.challenge_index]
+            candidate = player if player else self._first_unresponded_challenge_candidate()
             return (f"{candidate.name}: Challenge {self.blocker.name}'s "
                     f"{self.block_claimed_card} block?",
                     ["Yes", "No"])
@@ -152,9 +167,46 @@ class GameController:
         return ("Unknown state", [])
 
     # ------------------------------------------------------------------
+    # get_active_player() — returns who should provide input right now
+    # ------------------------------------------------------------------
+    def get_active_player(self):
+        """Return a Player who must currently provide input, or None.
+
+        For simultaneous states (challenge/block queries), returns the first
+        unresponded candidate. Use get_active_players() for the full list.
+        """
+        if self.state in (State.SETUP_PLAYER_COUNT, State.SETUP_PLAYER_NAME):
+            return None
+        if self.state in (State.CHOOSE_ACTION, State.CHOOSE_TARGET,
+                          State.EXCHANGE_RETURN_FIRST, State.EXCHANGE_RETURN_SECOND):
+            return self.current_player
+        if self.state in (State.CHALLENGE_QUERY, State.CHALLENGE_BLOCK_QUERY):
+            return self._first_unresponded_challenge_candidate()
+        if self.state == State.BLOCK_QUERY:
+            return self._first_unresponded_block_candidate()
+        if self.state == State.LOSE_INFLUENCE:
+            return self.lose_influence_player
+        return None  # GAME_OVER or unknown
+
+    def get_active_players(self):
+        """Return list of all players who must currently provide input.
+
+        For simultaneous states, this returns every candidate who has not
+        yet responded.
+        """
+        if self.state in (State.CHALLENGE_QUERY, State.CHALLENGE_BLOCK_QUERY):
+            return [p for p in self.challenge_candidates
+                    if p not in self.challenge_responded]
+        if self.state == State.BLOCK_QUERY:
+            return [p for p in self.block_candidates
+                    if p not in self.block_responded]
+        single = self.get_active_player()
+        return [single] if single is not None else []
+
+    # ------------------------------------------------------------------
     # handle_input(value) — the UI calls this when a button is clicked
     # ------------------------------------------------------------------
-    def handle_input(self, value):
+    def handle_input(self, value, player=None):
         if self.state == State.SETUP_PLAYER_COUNT:
             self._handle_setup_count(value)
         elif self.state == State.SETUP_PLAYER_NAME:
@@ -164,11 +216,20 @@ class GameController:
         elif self.state == State.CHOOSE_TARGET:
             self._handle_choose_target(value)
         elif self.state == State.CHALLENGE_QUERY:
-            self._handle_challenge_query(value)
+            if player is None:
+                player = self._first_unresponded_challenge_candidate()
+            if player is not None:
+                self._handle_challenge_query(value, player)
         elif self.state == State.BLOCK_QUERY:
-            self._handle_block_query(value)
+            if player is None:
+                player = self._first_unresponded_block_candidate()
+            if player is not None:
+                self._handle_block_query(value, player)
         elif self.state == State.CHALLENGE_BLOCK_QUERY:
-            self._handle_challenge_block_query(value)
+            if player is None:
+                player = self._first_unresponded_challenge_candidate()
+            if player is not None:
+                self._handle_challenge_block_query(value, player)
         elif self.state == State.LOSE_INFLUENCE:
             self._handle_lose_influence(value)
         elif self.state == State.EXCHANGE_RETURN_FIRST:
@@ -205,8 +266,6 @@ class GameController:
             players = [Player(n) for n in self.player_names]
             self.game = Game(players)
             self._log("Game started! Cards dealt.")
-            for p in self.game.players:
-                self._log(f"  {p.name}: {', '.join(p.influence)}")
             self.current_player_index = 0
             self.current_player = self.game.players[0]
             self.state = State.CHOOSE_ACTION
@@ -275,30 +334,30 @@ class GameController:
             # Coup — no challenge or block
             self._execute_action()
 
-    # ------ Challenge flow ------
+    # ------ Challenge flow (simultaneous) ------
 
     def _start_challenge(self):
-        """Begin walking through players to see if anyone challenges."""
+        """Prompt all eligible players simultaneously to challenge."""
         acting = self.current_player
         self.challenge_candidates = [
             p for p in self.game.players
             if p != acting and p.is_alive()
         ]
-        self.challenge_index = 0
+        self.challenge_responded = set()
         if not self.challenge_candidates:
             self._after_challenge_passed()
         else:
             self.state = State.CHALLENGE_QUERY
 
-    def _handle_challenge_query(self, value):
+    def _handle_challenge_query(self, value, player):
+        if player not in self.challenge_candidates or player in self.challenge_responded:
+            return  # Not a valid responder or already responded
         if value == "Yes":
-            challenger = self.challenge_candidates[self.challenge_index]
-            self._resolve_action_challenge(challenger)
+            self._resolve_action_challenge(player)
         elif value == "No":
-            self.challenge_index += 1
-            if self.challenge_index >= len(self.challenge_candidates):
+            self.challenge_responded.add(player)
+            if len(self.challenge_responded) >= len(self.challenge_candidates):
                 self._after_challenge_passed()
-            # else stay in CHALLENGE_QUERY for next candidate
         # else ignore invalid input
 
     def _resolve_action_challenge(self, challenger):
@@ -327,10 +386,10 @@ class GameController:
         else:
             self._execute_action()
 
-    # ------ Block flow ------
+    # ------ Block flow (simultaneous) ------
 
     def _start_block(self):
-        """Begin walking through eligible players to see if anyone blocks."""
+        """Prompt all eligible players simultaneously to block."""
         acting = self.current_player
         target = self.pending_target
 
@@ -344,52 +403,52 @@ class GameController:
                 if p != acting and p.is_alive()
             ]
 
-        self.block_index = 0
+        self.block_responded = set()
         if not self.block_candidates:
             self._execute_action()
         else:
             self.state = State.BLOCK_QUERY
 
-    def _handle_block_query(self, value):
+    def _handle_block_query(self, value, player):
+        if player not in self.block_candidates or player in self.block_responded:
+            return  # Not a valid responder or already responded
         if value == "Don't block":
-            self.block_index += 1
-            if self.block_index >= len(self.block_candidates):
+            self.block_responded.add(player)
+            if len(self.block_responded) >= len(self.block_candidates):
                 # No one blocked
                 self._execute_action()
-            # else stay in BLOCK_QUERY for next candidate
         elif value.startswith("Block with "):
             card = value[len("Block with "):]
-            blocker = self.block_candidates[self.block_index]
-            self.blocker = blocker
+            self.blocker = player
             self.block_claimed_card = card
-            self._log(f"{blocker.name} blocks with {card}!")
+            self._log(f"{player.name} blocks with {card}!")
             # The block can now be challenged
             self._start_challenge_block()
 
-    # ------ Challenge-on-block flow ------
+    # ------ Challenge-on-block flow (simultaneous) ------
 
     def _start_challenge_block(self):
-        """Walk through players to see if anyone challenges the block."""
+        """Prompt all eligible players simultaneously to challenge the block."""
         self.challenge_candidates = [
             p for p in self.game.players
             if p != self.blocker and p.is_alive()
         ]
-        self.challenge_index = 0
+        self.challenge_responded = set()
         if not self.challenge_candidates:
             # No one can challenge the block — block stands
             self._block_stands()
         else:
             self.state = State.CHALLENGE_BLOCK_QUERY
 
-    def _handle_challenge_block_query(self, value):
+    def _handle_challenge_block_query(self, value, player):
+        if player not in self.challenge_candidates or player in self.challenge_responded:
+            return
         if value == "Yes":
-            challenger = self.challenge_candidates[self.challenge_index]
-            self._resolve_block_challenge(challenger)
+            self._resolve_block_challenge(player)
         elif value == "No":
-            self.challenge_index += 1
-            if self.challenge_index >= len(self.challenge_candidates):
+            self.challenge_responded.add(player)
+            if len(self.challenge_responded) >= len(self.challenge_candidates):
                 self._block_stands()
-            # else stay in CHALLENGE_BLOCK_QUERY for next candidate
 
     def _resolve_block_challenge(self, challenger):
         succeeded, loser = self.game.resolve_challenge(
