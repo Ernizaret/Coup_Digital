@@ -19,6 +19,9 @@ class Agent:
         self.api_key = api_key
         self.model = model
         self.private_thoughts = []
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.query_count = 0
         self._client = OpenAI(
             api_key=api_key,
             base_url=OPENROUTER_BASE_URL,
@@ -33,11 +36,16 @@ class Agent:
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
+            max_tokens=512,
         )
+        self.query_count += 1
+        if response.usage:
+            self.prompt_tokens += response.usage.prompt_tokens
+            self.completion_tokens += response.usage.completion_tokens
         return response.choices[0].message.content
 
     def add_thought(self, thought):
-        """Store a private thought for future prompting."""
+        """Store a private thought for future prompting. keep it short and concise."""
         self.private_thoughts.append(thought)
 
     def get_thoughts_text(self):

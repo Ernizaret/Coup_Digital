@@ -100,3 +100,16 @@ class ConsoleOutput:
         print(f"\n{BOLD}{'=' * 60}")
         print(f"  GAME OVER — {winner_str} WINS!")
         print(f"{'=' * 60}{RESET}\n")
+
+    def token_usage(self, agents):
+        """Print token usage summary for each agent."""
+        print(f"{BOLD}Token Usage:{RESET}")
+        for agent in agents:
+            total = agent.prompt_tokens + agent.completion_tokens
+            ratio = total / agent.query_count if agent.query_count else 0
+            name_str = _colored(agent.name, agent.name)
+            print(f"  {name_str}: {total:,} tokens "
+                  f"({agent.prompt_tokens:,} prompt + "
+                  f"{agent.completion_tokens:,} completion) "
+                  f"| {ratio:,.0f} tokens/query over {agent.query_count} queries")
+        print()

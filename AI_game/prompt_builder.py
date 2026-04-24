@@ -5,7 +5,7 @@ from src.controller import State, ACTION_INFO
 RULES_SUMMARY = """\
 COUP RULES:
 - Each player starts with 2 coins and 2 hidden influence cards.
-- Card types: Duke, Assassin, Captain, Contessa, Ambassador (3 of each in the deck).
+- Card types: Duke, Assassin, Captain, Contessa, Ambassador (3 of each in the game).
 - On your turn, choose one action. Some actions claim a card — anyone may challenge.
 - If challenged and you HAVE the card: challenger loses 1 influence; your card is swapped.
 - If challenged and you DON'T have the card: you lose 1 influence; action is cancelled.
@@ -24,7 +24,10 @@ ACTIONS:
 
 
 def build_prompt(controller, player, agent, event_log):
-    """Build a full prompt string for an AI agent given the current game state.
+    """Build a prompt string for an AI agent given the current game state.
+
+    Uses the full response format (speech + action + private_thought) for
+    CHOOSE_ACTION, and a slim action-only format for all other states.
 
     Args:
         controller: GameController instance
@@ -32,13 +35,14 @@ def build_prompt(controller, player, agent, event_log):
         agent: Agent instance (for private thoughts)
         event_log: list of {"type": "event"/"speech", ...} dicts
     """
+    is_turn = controller.state == State.CHOOSE_ACTION
     sections = [
         RULES_SUMMARY,
         _game_state_section(controller, player),
         _private_info_section(player, agent),
         _public_log_section(event_log),
         _decision_section(controller, player),
-        _response_format_section(),
+        _response_format_full() if is_turn else _response_format_slim(),
     ]
     return "\n".join(sections)
 
@@ -125,13 +129,24 @@ def _decision_section(controller, player):
     return "\n".join(lines)
 
 
-def _response_format_section():
-    """Instructions for the AI on response format."""
+def _response_format_full():
+    """Full response format for turn actions — includes speech and private thought."""
+    return (
+        '\nRESPOND WITH EXACTLY THIS JSON FORMAT (no other text):\n'
+        '{\n'
+        '  "speech": "your public statement to other players. use this strategically or however you see fit.",\n'
+        '  "action": "your chosen option from the valid choices above",\n'
+        '  "private_thought": "your private strategic reasoning (optional, not shown to others). Keep it concise and focused."\n'
+        '}'
+    )
+
+
+def _response_format_slim():
+    """Slim response format for reactive decisions ."""
     return (
         '\nRESPOND WITH EXACTLY THIS JSON FORMAT (no other text):\n'
         '{\n'
         '  "speech": "your public statement to other players",\n'
-        '  "action": "your chosen option from the valid choices above",\n'
-        '  "private_thought": "your private strategic reasoning (optional, not shown to others)"\n'
+        '  "action": "your chosen option from the valid choices above"\n'
         '}'
     )

@@ -4,6 +4,7 @@ from src.controller import GameController, State
 from AI_game.prompt_builder import build_prompt
 from AI_game.response_parser import parse_response, ParseError
 from AI_game.console_output import ConsoleOutput
+from AI_game.stats import record_game
 
 MAX_RETRIES = 3
 
@@ -99,6 +100,11 @@ class GameRunner:
             self._consume_log()
             winner = self.controller.game.get_living_players()[0]
             self.output.game_over(winner.name)
+            self.output.token_usage(self.agents)
+            # Record stats — find the winning agent's model
+            agent_map = self._build_agent_map()
+            winner_agent = agent_map[winner.name]
+            record_game(self.agents, winner_agent.model)
 
     def _query_agent(self, agent, player, options):
         """Build prompt, query agent, parse response. Retry on failure.
