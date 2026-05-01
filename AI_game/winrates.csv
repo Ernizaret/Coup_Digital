@@ -1,0 +1,5 @@
+model,games_played,games_won,win_rate,total_tokens,total_queries,avg_tokens_per_query
+anthropic/claude-opus-4.6-fast,5,0,0.0000,38925,24,1621.9
+google/gemini-2.0-flash-001,6,0,0.0000,37036,31,1194.7
+openai/gpt-4o,6,2,0.3333,59572,47,1267.5
+perplexity/sonar,6,4,0.6667,52736,38,1387.8
