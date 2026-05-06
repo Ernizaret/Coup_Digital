@@ -4,6 +4,7 @@ from src.controller import GameController, State
 from AI_game.prompt_builder import build_prompt
 from AI_game.response_parser import parse_response, ParseError
 from AI_game.console_output import ConsoleOutput
+from AI_game.log_writer import LogWriter
 from AI_game.stats import record_game
 
 MAX_RETRIES = 3
@@ -21,6 +22,7 @@ class GameRunner:
         self.agents = agents
         self.controller = GameController()
         self.output = ConsoleOutput()
+        self.log_writer = LogWriter()
         self.event_log = []       # list of {"type": "event"/"speech", ...}
         self._log_cursor = 0      # tracks how far we've consumed controller.log
         self._turn_number = 0
@@ -29,6 +31,7 @@ class GameRunner:
         """Run the full game from setup to game over."""
         self._setup_game()
         self.output.game_started(self.controller)
+        self.log_writer.game_started(self.controller, self.agents)
         self._game_loop()
 
     def _setup_game(self):
@@ -61,6 +64,7 @@ class GameRunner:
                     and player != last_turn_player):
                 self._turn_number += 1
                 self.output.turn_start(player.name, self._turn_number)
+                self.log_writer.turn_start(player.name, self._turn_number)
                 last_turn_player = player
 
             agent = agent_map.get(player.name)
@@ -84,8 +88,10 @@ class GameRunner:
                 })
                 self.controller.send_chat(player.name, speech)
                 self.output.agent_response(player.name, speech, action)
+                self.log_writer.agent_response(player.name, speech, action)
             else:
                 self.output.agent_response(player.name, "(silent)", action)
+                self.log_writer.agent_response(player.name, "(silent)", action)
 
             # Execute the action
             self.controller.handle_input(action, player)
@@ -101,6 +107,9 @@ class GameRunner:
             winner = self.controller.game.get_living_players()[0]
             self.output.game_over(winner.name)
             self.output.token_usage(self.agents)
+            self.log_writer.game_over(winner.name)
+            self.log_writer.token_usage(self.agents)
+            self.log_writer.write(winner.name, self.agents)
             # Record stats — find the winning agent's model
             agent_map = self._build_agent_map()
             winner_agent = agent_map[winner.name]
@@ -146,4 +155,5 @@ class GameRunner:
             text = self.controller.log[self._log_cursor]
             self.event_log.append({"type": "event", "text": text})
             self.output.game_event(text)
+            self.log_writer.game_event(text)
             self._log_cursor += 1
