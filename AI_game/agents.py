@@ -14,11 +14,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 class Agent:
     """An AI agent that queries a model via OpenRouter."""
 
-    def __init__(self, name, api_key, model):
+    def __init__(self, name, api_key, model, history_depth=2):
         self.name = name
         self.api_key = api_key
         self.model = model
-        self.private_thoughts = []
+        self.history_depth = history_depth
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.query_count = 0
@@ -44,17 +44,7 @@ class Agent:
             self.completion_tokens += response.usage.completion_tokens
         return response.choices[0].message.content
 
-    def add_thought(self, thought):
-        """Store a private thought for future prompting. keep it short and concise."""
-        self.private_thoughts.append(thought)
 
-    def get_thoughts_text(self):
-        """Format accumulated private thoughts as a string."""
-        if not self.private_thoughts:
-            return "None yet."
-        return "\n".join(f"- {t}" for t in self.private_thoughts)
-
-
-def create_agent(name, api_key, model):
+def create_agent(name, api_key, model, history_depth=2):
     """Create an Agent instance."""
-    return Agent(name, api_key, model)
+    return Agent(name, api_key, model, history_depth=history_depth)

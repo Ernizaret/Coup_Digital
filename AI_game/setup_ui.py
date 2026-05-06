@@ -36,6 +36,7 @@ class AgentSetupWindow:
 
         # Track how many of each agent type have been added (for numbering)
         self._agent_counts = {name: 0 for name in self.available}
+        self._history_depths = {}  # agent_display_name -> IntVar
 
         self._build_layout()
 
@@ -81,6 +82,14 @@ class AgentSetupWindow:
         tk.Button(btn_side, text="Remove", width=10,
                   command=self._remove).pack(pady=2)
 
+        # History depth section (below turn order)
+        self.depth_frame = tk.LabelFrame(
+            self.root, text="History Depth (turns of context per agent)",
+            padx=10, pady=5)
+        self.depth_frame.pack(fill=tk.X, padx=15, pady=5)
+        self._depth_inner = tk.Frame(self.depth_frame)
+        self._depth_inner.pack(fill=tk.X)
+
         # Start button
         self.start_btn = tk.Button(
             self.root, text="Start Game",
@@ -104,12 +113,14 @@ class AgentSetupWindow:
 
         self.listbox.insert(tk.END, display_name)
         self._update_start_btn()
+        self._rebuild_depth_rows()
 
     def _remove(self):
         sel = self.listbox.curselection()
         if sel:
             self.listbox.delete(sel[0])
             self._update_start_btn()
+            self._rebuild_depth_rows()
 
     def _move_up(self):
         sel = self.listbox.curselection()
@@ -119,6 +130,7 @@ class AgentSetupWindow:
             self.listbox.delete(idx)
             self.listbox.insert(idx - 1, text)
             self.listbox.selection_set(idx - 1)
+            self._rebuild_depth_rows()
 
     def _move_down(self):
         sel = self.listbox.curselection()
@@ -128,6 +140,35 @@ class AgentSetupWindow:
             self.listbox.delete(idx)
             self.listbox.insert(idx + 1, text)
             self.listbox.selection_set(idx + 1)
+            self._rebuild_depth_rows()
+
+    def _rebuild_depth_rows(self):
+        """Rebuild the per-agent history depth spinbox rows."""
+        for child in self._depth_inner.winfo_children():
+            child.destroy()
+
+        agent_names = [self.listbox.get(i) for i in range(self.listbox.size())]
+
+        new_depths = {}
+        for name in agent_names:
+            # Preserve existing value if agent was already configured
+            if name in self._history_depths:
+                val = self._history_depths[name].get()
+            else:
+                val = 2  # default
+
+            var = tk.IntVar(value=val)
+            new_depths[name] = var
+
+            row = tk.Frame(self._depth_inner)
+            row.pack(fill=tk.X, pady=1)
+            tk.Label(row, text=name, width=16, anchor=tk.W,
+                     font=("Helvetica", 10)).pack(side=tk.LEFT)
+            tk.Spinbox(row, from_=0, to=99, width=4,
+                       textvariable=var,
+                       font=("Helvetica", 10)).pack(side=tk.LEFT, padx=4)
+
+        self._history_depths = new_depths
 
     def _update_start_btn(self):
         count = self.listbox.size()
@@ -144,11 +185,16 @@ class AgentSetupWindow:
         agents_cfg = self.config["agents"]
         agents = []
         for name in agent_names:
-            # Find the provider config — strip number suffix
+            # Get history depth for this agent
+            depth = self._history_depths.get(name)
+            depth_val = depth.get() if depth else 2
+
+            # Find the provider config -- strip number suffix
             for provider in self.available:
                 if name == provider or name.startswith(provider + " "):
                     model = agents_cfg[provider]
-                    agent = create_agent(name, api_key, model)
+                    agent = create_agent(name, api_key, model,
+                                         history_depth=depth_val)
                     agents.append(agent)
                     break
 

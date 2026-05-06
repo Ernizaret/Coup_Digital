@@ -120,12 +120,6 @@ class GameRunner:
                 self.output.agent_done()
 
                 result = parse_response(raw, options)
-
-                # Store private thought if provided
-                private = result.get("private_thought", "")
-                if private:
-                    agent.add_thought(private)
-
                 return result["action"], result["speech"]
 
             except ParseError as e:
