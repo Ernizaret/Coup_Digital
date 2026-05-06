@@ -3,3 +3,4 @@ __pycache__/
 .claude/
 ai_config.json
 AI_game/AI_game_design.md
+AI_game/logs/*.md
