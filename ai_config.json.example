@@ -1,5 +1,6 @@
 {
     "api_key": "sk-or-v1-...",
+    "prompt_mode": "heavy",
     "agents": {
         "ChatGPT": "openai/gpt-4o",
         "Claude": "anthropic/claude-sonnet-4-20250514",

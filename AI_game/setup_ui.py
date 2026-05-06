@@ -3,7 +3,7 @@
 import tkinter as tk
 from tkinter import messagebox
 
-from AI_game.config import load_config, get_available_agents
+from AI_game.config import load_config, get_available_agents, get_prompt_mode
 from AI_game.agents import create_agent
 from AI_game.game_runner import GameRunner
 
@@ -11,7 +11,7 @@ from AI_game.game_runner import GameRunner
 class AgentSetupWindow:
     """Setup window for selecting AI agents and configuring turn order."""
 
-    def __init__(self, root):
+    def __init__(self, root, prompt_mode_override=None):
         self.root = root
         self.root.title("Coup — AI Agent Setup")
         self.root.minsize(500, 400)
@@ -23,6 +23,12 @@ class AgentSetupWindow:
             messagebox.showerror("Config Error", str(e))
             self.root.destroy()
             return
+
+        # Resolve prompt mode: CLI override > config file
+        if prompt_mode_override is not None:
+            self.prompt_mode = prompt_mode_override
+        else:
+            self.prompt_mode = get_prompt_mode(self.config)
 
         self.available = get_available_agents(self.config)
         if len(self.available) < 2:
@@ -155,13 +161,13 @@ class AgentSetupWindow:
         self.root.destroy()
 
         # Run the game (blocks until game over)
-        runner = GameRunner(agents)
+        runner = GameRunner(agents, prompt_mode=self.prompt_mode)
         runner.run()
 
 
-def main():
+def main(prompt_mode_override=None):
     root = tk.Tk()
-    AgentSetupWindow(root)
+    AgentSetupWindow(root, prompt_mode_override=prompt_mode_override)
     root.mainloop()
 
 

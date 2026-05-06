@@ -22,29 +22,93 @@ ACTIONS:
 - Coup: Pay 7 coins, target loses 1 influence. (No card claim, cannot be blocked, MANDATORY at 10+ coins)
 """
 
+RULES_SUMMARY_LIGHT = """\
+COUP: 2 coins, 2 hidden cards each. Cards: Duke, Assassin, Captain, Contessa, Ambassador (3 each).
+Actions: Income(+1), Foreign Aid(+2, blocked by Duke), Tax(+3, Duke), Steal(+2 from target, Captain, blocked by Ambassador/Captain), Exchange(draw 2 return 2, Ambassador), Assassinate(pay 3, target -1 influence, Assassin, blocked by Contessa), Coup(pay 7, target -1 influence, mandatory at 10+).
+Challenge: have card = challenger loses influence; don't have = you lose, action cancelled. Blocks can be challenged too.
+"""
 
-def build_prompt(controller, player, agent, event_log):
-    """Build a prompt string for an AI agent given the current game state.
+# Number of log entries to include in each mode
+_LOG_WINDOW_HEAVY = 30
+_LOG_WINDOW_LIGHT = 10
 
-    Uses the full response format (speech + action + private_thought) for
-    CHOOSE_ACTION, and a slim action-only format for all other states.
+
+def build_prompt_sections(controller, player, agent, event_log, prompt_mode="heavy"):
+    """Build structured prompt sections for an AI agent given the current game state.
+
+    Returns a dict with keys:
+        - "rules_summary": str — static rules text (cacheable, never changes)
+        - "private_thoughts": str — agent's accumulated private thoughts (grows only)
+        - "game_log": str — recent public game events (grows only)
+        - "decision_prompt": str — game state + decision + response format (changes each query)
+
+    In heavy mode (default): uses full response format (with private_thought)
+    for CHOOSE_ACTION, slim format for other states. Includes full rules
+    summary and larger game log window.
+
+    In light mode: always uses slim response format (no private_thought),
+    uses shorter rules summary, smaller game log window, and omits private
+    thoughts from the private info section.
 
     Args:
         controller: GameController instance
         player: Player object for this agent
         agent: Agent instance (for private thoughts)
         event_log: list of {"type": "event"/"speech", ...} dicts
+        prompt_mode: "heavy" or "light"
     """
+    is_light = prompt_mode == "light"
     is_turn = controller.state == State.CHOOSE_ACTION
-    sections = [
-        RULES_SUMMARY,
+    use_full_format = is_turn and not is_light
+    log_window = _LOG_WINDOW_LIGHT if is_light else _LOG_WINDOW_HEAVY
+
+    rules_summary = RULES_SUMMARY_LIGHT if is_light else RULES_SUMMARY
+
+    if is_light:
+        private_thoughts = ""
+    else:
+        private_thoughts = (
+            "YOUR PREVIOUS PRIVATE THOUGHTS:\n" + agent.get_thoughts_text()
+        )
+
+    game_log = _public_log_section(event_log, log_window=log_window)
+
+    decision_parts = [
         _game_state_section(controller, player),
-        _private_info_section(player, agent),
-        _public_log_section(event_log),
+        _private_info_section(player, agent, include_thoughts=False),
         _decision_section(controller, player),
-        _response_format_full() if is_turn else _response_format_slim(),
+        _response_format_full() if use_full_format else _response_format_slim(),
     ]
-    return "\n".join(sections)
+    decision_prompt = "\n".join(decision_parts)
+
+    return {
+        "rules_summary": rules_summary,
+        "private_thoughts": private_thoughts,
+        "game_log": game_log,
+        "decision_prompt": decision_prompt,
+    }
+
+
+def build_prompt(controller, player, agent, event_log, prompt_mode="heavy"):
+    """Build a flat prompt string for an AI agent given the current game state.
+
+    This is a convenience wrapper around build_prompt_sections() that returns
+    a single concatenated string. Used for backward compatibility.
+
+    Args:
+        controller: GameController instance
+        player: Player object for this agent
+        agent: Agent instance (for private thoughts)
+        event_log: list of {"type": "event"/"speech", ...} dicts
+        prompt_mode: "heavy" or "light"
+    """
+    sections = build_prompt_sections(controller, player, agent, event_log, prompt_mode)
+    parts = [sections["rules_summary"]]
+    if sections["private_thoughts"]:
+        parts.append(sections["private_thoughts"])
+    parts.append(sections["game_log"])
+    parts.append(sections["decision_prompt"])
+    return "\n".join(parts)
 
 
 def _game_state_section(controller, player):
@@ -72,23 +136,23 @@ def _game_state_section(controller, player):
     return "\n".join(lines)
 
 
-def _private_info_section(player, agent):
+def _private_info_section(player, agent, include_thoughts=True):
     """Private information only this player can see."""
     lines = ["YOUR PRIVATE INFO:"]
     lines.append(f"Your cards: {', '.join(player.influence)}")
     lines.append(f"Your coins: {player.coins}")
-    lines.append(f"Your previous private thoughts:\n{agent.get_thoughts_text()}")
+    if include_thoughts:
+        lines.append(f"Your previous private thoughts:\n{agent.get_thoughts_text()}")
     return "\n".join(lines)
 
 
-def _public_log_section(event_log):
+def _public_log_section(event_log, log_window=_LOG_WINDOW_HEAVY):
     """Recent public history of events and speech."""
     lines = ["PUBLIC GAME LOG:"]
     if not event_log:
         lines.append("  (Game just started — no events yet)")
     else:
-        # Show last 30 entries to keep prompt manageable
-        recent = event_log[-30:]
+        recent = event_log[-log_window:]
         for entry in recent:
             if entry["type"] == "event":
                 lines.append(f"  [Event] {entry['text']}")
