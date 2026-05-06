@@ -1,8 +1,11 @@
 import random
 
 class Deck:
-    def __init__(self):
-        self.cards = ["Duke", "Assassin", "Captain", "Contessa", "Ambassador"] * 3
+    def __init__(self, cards=None):
+        if cards is not None:
+            self.cards = list(cards)
+        else:
+            self.cards = ["Duke", "Assassin", "Captain", "Contessa", "Ambassador"] * 3
     
     def draw(self):
         if len(self.cards) > 0:

@@ -1,4 +1,4 @@
-"""Entry point: python -m AI_game [--mode heavy|light]"""
+"""Entry point: python -m AI_game [--mode heavy|light] [--preset NAME]"""
 
 import argparse
 
@@ -19,8 +19,17 @@ def _parse_args():
             f"Default: {DEFAULT_PROMPT_MODE}"
         ),
     )
+    parser.add_argument(
+        "--preset",
+        type=str,
+        default=None,
+        help=(
+            "Name of a preset from presets.json to use for custom starting "
+            "conditions (hands, coins, deck composition)."
+        ),
+    )
     return parser.parse_args()
 
 
 args = _parse_args()
-main(prompt_mode_override=args.mode)
+main(prompt_mode_override=args.mode, preset_name=args.preset)

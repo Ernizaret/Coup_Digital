@@ -11,10 +11,11 @@ from AI_game.game_runner import GameRunner
 class AgentSetupWindow:
     """Setup window for selecting AI agents and configuring turn order."""
 
-    def __init__(self, root, prompt_mode_override=None):
+    def __init__(self, root, prompt_mode_override=None, preset_name=None):
         self.root = root
         self.root.title("Coup — AI Agent Setup")
         self.root.minsize(500, 400)
+        self.preset_name = preset_name
 
         # Load config
         try:
@@ -150,13 +151,15 @@ class AgentSetupWindow:
         self.root.destroy()
 
         # Run the game (blocks until game over)
-        runner = GameRunner(agents, prompt_mode=self.prompt_mode)
+        runner = GameRunner(agents, prompt_mode=self.prompt_mode,
+                            preset_name=self.preset_name)
         runner.run()
 
 
-def main(prompt_mode_override=None):
+def main(prompt_mode_override=None, preset_name=None):
     root = tk.Tk()
-    AgentSetupWindow(root, prompt_mode_override=prompt_mode_override)
+    AgentSetupWindow(root, prompt_mode_override=prompt_mode_override,
+                     preset_name=preset_name)
     root.mainloop()
 
 

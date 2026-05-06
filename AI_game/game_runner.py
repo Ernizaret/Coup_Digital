@@ -6,6 +6,7 @@ from AI_game.response_parser import parse_response, ParseError
 from AI_game.console_output import ConsoleOutput
 from AI_game.log_writer import LogWriter
 from AI_game.stats import record_game
+from AI_game.presets import get_preset, apply_preset
 
 MAX_RETRIES = 3
 
@@ -13,7 +14,8 @@ MAX_RETRIES = 3
 class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
-    def __init__(self, agents, prompt_mode="heavy", quiet=False, log=True):
+    def __init__(self, agents, prompt_mode="heavy", quiet=False, log=True,
+                 preset_name=None):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
@@ -21,9 +23,12 @@ class GameRunner:
             prompt_mode: "heavy" or "light" — controls prompt verbosity
             quiet: if True, suppress play-by-play console output
             log: if True, write a markdown transcript to AI_game/logs/
+            preset_name: optional preset name from presets.json to configure
+                custom starting conditions (hands, coins, deck).
         """
         self.agents = agents
         self.prompt_mode = prompt_mode
+        self.preset_name = preset_name
         self.controller = GameController()
         self.output = ConsoleOutput(quiet=quiet)
         self.log_writer = LogWriter() if log else None
@@ -39,6 +44,8 @@ class GameRunner:
             Keys: "winner_name", "winner_model", "agents" (list of Agent instances).
         """
         self._setup_game()
+        if self.preset_name:
+            self._apply_preset()
         self.output.game_started(self.controller, self.prompt_mode)
         if self.log_writer:
             self.log_writer.game_started(self.controller, self.prompt_mode)
@@ -55,6 +62,32 @@ class GameRunner:
             self.controller.handle_input(agent.name)
 
         self._consume_log()
+
+    def _apply_preset(self):
+        """Override game state with a preset's custom starting conditions.
+
+        Loads the named preset, validates it against the current player names,
+        then replaces player hands, coins, and deck composition.
+        """
+        preset = get_preset(self.preset_name)
+        game = self.controller.game
+        player_names = [p.name for p in game.players]
+
+        # Clear the randomly-dealt hands (deal_initial_cards already ran)
+        all_dealt_cards = []
+        for player in game.players:
+            all_dealt_cards.extend(player.influence)
+            player.influence = []
+            player.coins = 2  # reset to default before preset applies
+
+        # Return dealt cards to deck so we have a full deck again
+        for card in all_dealt_cards:
+            game.deck.return_card(card)
+
+        # Now apply the preset (which assigns hands, coins, and configures deck)
+        apply_preset(preset, game, player_names)
+
+        self.controller._log(f"Preset '{self.preset_name}' applied.")
 
     def _build_agent_map(self):
         """Map player names to Agent instances."""

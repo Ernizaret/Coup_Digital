@@ -5,6 +5,7 @@ Usage:
     python -m AI_game.bulk --games 50 --agents "Claude,Claude,Gemini,Gemini"
     python -m AI_game.bulk --games 20 --quiet
     python -m AI_game.bulk --games 10 --delay 5
+    python -m AI_game.bulk --games 100 --preset assassin_mirror
 """
 
 import argparse
@@ -60,6 +61,13 @@ def _parse_args():
         "--no-logs", action="store_true",
         help="Disable markdown transcript logging (transcripts are written by default).",
     )
+    parser.add_argument(
+        "--preset", type=str, default=None,
+        help=(
+            "Name of a preset from presets.json to use for custom starting "
+            "conditions (hands, coins, deck composition). Applied to every game."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -105,7 +113,7 @@ def _resolve_agent_names(agents_arg, config):
 
 
 def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
-              log=True):
+              log=True, preset_name=None):
     """Execute the bulk game loop.
 
     Returns:
@@ -121,6 +129,8 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
     print(f"  Games to run:  {num_games}")
     print(f"  Agents:        {', '.join(agent_display_names)}")
     print(f"  Prompt mode:   {prompt_mode}")
+    if preset_name:
+        print(f"  Preset:        {preset_name}")
     print(f"  Quiet mode:    {'on' if quiet else 'off'}")
     if delay > 0:
         print(f"  Delay:         {delay}s between games")
@@ -134,7 +144,7 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
             agents = create_agents_from_names(agent_display_names, config)
 
             runner = GameRunner(agents, prompt_mode=prompt_mode, quiet=quiet,
-                                log=log)
+                                log=log, preset_name=preset_name)
             result = runner.run()
 
             if result is not None:
@@ -296,6 +306,7 @@ def main():
         quiet=args.quiet,
         delay=args.delay,
         log=not args.no_logs,
+        preset_name=args.preset,
     )
 
 
