@@ -23,27 +23,47 @@ ACTIONS:
 """
 
 
-def build_prompt(controller, player, agent, event_log):
+def build_prompt(controller, player, agent, event_log, prompt_mode="heavy"):
     """Build a prompt string for an AI agent given the current game state.
 
     Uses the full response format (speech + action + private_thought) for
     CHOOSE_ACTION, and a slim action-only format for all other states.
+
+    In "light" mode, omits rules summary and private thoughts to minimize
+    token usage for bulk runs.
 
     Args:
         controller: GameController instance
         player: Player object for this agent
         agent: Agent instance (for private thoughts)
         event_log: list of {"type": "event"/"speech", ...} dicts
+        prompt_mode: "heavy" (full prompts) or "light" (slim prompts)
     """
     is_turn = controller.state == State.CHOOSE_ACTION
-    sections = [
-        RULES_SUMMARY,
-        _game_state_section(controller, player),
-        _private_info_section(player, agent),
-        _public_log_section(event_log),
-        _decision_section(controller, player),
-        _response_format_full() if is_turn else _response_format_slim(),
-    ]
+    sections = []
+
+    if prompt_mode == "heavy":
+        sections.append(RULES_SUMMARY)
+
+    sections.append(_game_state_section(controller, player))
+
+    if prompt_mode == "heavy":
+        sections.append(_private_info_section(player, agent))
+    else:
+        # Light mode: just show cards and coins, no private thoughts
+        sections.append(_private_info_light(player))
+
+    sections.append(_public_log_section(event_log))
+    sections.append(_decision_section(controller, player))
+
+    if prompt_mode == "heavy":
+        sections.append(
+            _response_format_full() if is_turn else _response_format_slim()
+        )
+    else:
+        # Light mode always uses slim format (no private_thought)
+        sections.append(_response_format_slim())
+
     return "\n".join(sections)
 
 
@@ -78,6 +98,14 @@ def _private_info_section(player, agent):
     lines.append(f"Your cards: {', '.join(player.influence)}")
     lines.append(f"Your coins: {player.coins}")
     lines.append(f"Your previous private thoughts:\n{agent.get_thoughts_text()}")
+    return "\n".join(lines)
+
+
+def _private_info_light(player):
+    """Minimal private info for light mode (no private thoughts)."""
+    lines = ["YOUR PRIVATE INFO:"]
+    lines.append(f"Your cards: {', '.join(player.influence)}")
+    lines.append(f"Your coins: {player.coins}")
     return "\n".join(lines)
 
 

@@ -3,6 +3,8 @@
 import json
 import os
 
+from AI_game.agents import create_agent
+
 CONFIG_FILENAME = "ai_config.json"
 
 
@@ -38,3 +40,44 @@ def load_config():
 def get_available_agents(config):
     """Return list of agent names from the config."""
     return list(config.get("agents", {}).keys())
+
+
+def create_agents_from_config(config, agent_names):
+    """Create Agent instances from a list of agent names, handling numbered suffixes.
+
+    When the same provider name appears multiple times, the second and subsequent
+    instances get numbered suffixes (e.g. "Claude", "Claude 2", "Claude 3").
+
+    Args:
+        config: dict from load_config() with "api_key" and "agents" keys.
+        agent_names: list of provider names (e.g. ["Claude", "Claude", "Gemini"]).
+
+    Returns:
+        list of Agent instances in the same order.
+    """
+    api_key = config["api_key"]
+    agents_cfg = config["agents"]
+    available = list(agents_cfg.keys())
+
+    # Count occurrences of each provider to assign numbered suffixes
+    counts = {}
+    agents = []
+    for name in agent_names:
+        # Find the matching provider
+        provider = None
+        for p in available:
+            if name == p or name.startswith(p + " "):
+                provider = p
+                break
+        if provider is None:
+            raise ValueError(
+                f"Unknown agent '{name}'. Available: {available}"
+            )
+
+        counts[provider] = counts.get(provider, 0) + 1
+        n = counts[provider]
+        display_name = provider if n == 1 else f"{provider} {n}"
+        model = agents_cfg[provider]
+        agents.append(create_agent(display_name, api_key, model))
+
+    return agents

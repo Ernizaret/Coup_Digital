@@ -113,3 +113,46 @@ class ConsoleOutput:
                   f"{agent.completion_tokens:,} completion) "
                   f"| {ratio:,.0f} tokens/query over {agent.query_count} queries")
         print()
+
+
+class QuietOutput:
+    """Silent output that suppresses all play-by-play during bulk runs.
+
+    Implements the same interface as ConsoleOutput but does nothing.
+    """
+
+    def game_started(self, controller):
+        pass
+
+    def turn_start(self, player_name, turn_number):
+        pass
+
+    def agent_thinking(self, name):
+        pass
+
+    def agent_done(self):
+        pass
+
+    def agent_response(self, name, speech, action):
+        pass
+
+    def agent_speech(self, name, speech):
+        pass
+
+    def game_event(self, text):
+        pass
+
+    def agent_error(self, name, attempt, error_msg):
+        pass
+
+    def agent_fallback(self, name, action):
+        pass
+
+    def game_state_summary(self, controller):
+        pass
+
+    def game_over(self, winner_name):
+        pass
+
+    def token_usage(self, agents):
+        pass

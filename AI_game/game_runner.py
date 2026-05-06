@@ -12,15 +12,18 @@ MAX_RETRIES = 3
 class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
-    def __init__(self, agents):
+    def __init__(self, agents, prompt_mode="heavy", output=None):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
             agents: list of Agent instances (2-6 agents)
+            prompt_mode: "heavy" (full prompts) or "light" (slim prompts)
+            output: ConsoleOutput instance (or compatible); defaults to ConsoleOutput()
         """
         self.agents = agents
+        self.prompt_mode = prompt_mode
         self.controller = GameController()
-        self.output = ConsoleOutput()
+        self.output = output if output is not None else ConsoleOutput()
         self.event_log = []       # list of {"type": "event"/"speech", ...}
         self._log_cursor = 0      # tracks how far we've consumed controller.log
         self._turn_number = 0
@@ -111,7 +114,8 @@ class GameRunner:
 
         Returns (action, speech) tuple.
         """
-        prompt = build_prompt(self.controller, player, agent, self.event_log)
+        prompt = build_prompt(self.controller, player, agent, self.event_log,
+                              prompt_mode=self.prompt_mode)
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
