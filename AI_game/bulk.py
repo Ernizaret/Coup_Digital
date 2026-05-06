@@ -56,6 +56,10 @@ def _parse_args():
         "--delay", type=float, default=0,
         help="Delay in seconds between games (useful for rate-limit avoidance). Default: 0",
     )
+    parser.add_argument(
+        "--no-logs", action="store_true",
+        help="Disable markdown transcript logging (transcripts are written by default).",
+    )
     return parser.parse_args()
 
 
@@ -100,7 +104,8 @@ def _resolve_agent_names(agents_arg, config):
     return build_agent_names(provider_names)
 
 
-def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay):
+def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
+              log=True):
     """Execute the bulk game loop.
 
     Returns:
@@ -128,7 +133,8 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay)
             # Create fresh agents for each game
             agents = create_agents_from_names(agent_display_names, config)
 
-            runner = GameRunner(agents, prompt_mode=prompt_mode, quiet=quiet)
+            runner = GameRunner(agents, prompt_mode=prompt_mode, quiet=quiet,
+                                log=log)
             result = runner.run()
 
             if result is not None:
@@ -289,6 +295,7 @@ def main():
         prompt_mode=prompt_mode,
         quiet=args.quiet,
         delay=args.delay,
+        log=not args.no_logs,
     )
 
 
