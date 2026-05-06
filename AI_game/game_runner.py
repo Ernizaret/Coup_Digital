@@ -12,26 +12,32 @@ MAX_RETRIES = 3
 class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
-    def __init__(self, agents, prompt_mode="heavy"):
+    def __init__(self, agents, prompt_mode="heavy", quiet=False):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
             agents: list of Agent instances (2-6 agents)
             prompt_mode: "heavy" or "light" — controls prompt verbosity
+            quiet: if True, suppress play-by-play console output
         """
         self.agents = agents
         self.prompt_mode = prompt_mode
         self.controller = GameController()
-        self.output = ConsoleOutput()
+        self.output = ConsoleOutput(quiet=quiet)
         self.event_log = []       # list of {"type": "event"/"speech", ...}
         self._log_cursor = 0      # tracks how far we've consumed controller.log
         self._turn_number = 0
 
     def run(self):
-        """Run the full game from setup to game over."""
+        """Run the full game from setup to game over.
+
+        Returns:
+            dict with game result info, or None if the game ended abnormally.
+            Keys: "winner_name", "winner_model", "agents" (list of Agent instances).
+        """
         self._setup_game()
         self.output.game_started(self.controller, self.prompt_mode)
-        self._game_loop()
+        return self._game_loop()
 
     def _setup_game(self):
         """Programmatically feed setup inputs to bypass the UI setup states."""
@@ -107,6 +113,12 @@ class GameRunner:
             agent_map = self._build_agent_map()
             winner_agent = agent_map[winner.name]
             record_game(self.agents, winner_agent.model, self.prompt_mode)
+            return {
+                "winner_name": winner.name,
+                "winner_model": winner_agent.model,
+                "agents": self.agents,
+            }
+        return None
 
     def _query_agent(self, agent, player, options):
         """Build prompt, query agent, parse response. Retry on failure.

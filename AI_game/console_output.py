@@ -31,10 +31,22 @@ def _colored(name, text):
 
 
 class ConsoleOutput:
-    """Handles all terminal output for spectating an AI Coup game."""
+    """Handles all terminal output for spectating an AI Coup game.
+
+    Args:
+        quiet: if True, suppress all play-by-play output. Only errors are
+            printed (to stderr). The game_over() and token_usage() methods
+            are also silenced; the caller is responsible for printing any
+            summary it needs.
+    """
+
+    def __init__(self, quiet=False):
+        self.quiet = quiet
 
     def game_started(self, controller, prompt_mode="heavy"):
         """Print game start banner and player list."""
+        if self.quiet:
+            return
         print(f"\n{BOLD}{'=' * 60}")
         print("              COUP — AI AGENT BATTLE")
         print(f"{'=' * 60}{RESET}")
@@ -46,32 +58,44 @@ class ConsoleOutput:
 
     def turn_start(self, player_name, turn_number):
         """Print turn separator."""
+        if self.quiet:
+            return
         print(f"{DIM}{'—' * 60}{RESET}")
         name_str = _colored(player_name, player_name)
         print(f"{BOLD}Turn {turn_number} — {name_str}'s turn{RESET}")
 
     def agent_thinking(self, name):
         """Show that an agent is thinking."""
+        if self.quiet:
+            return
         name_str = _colored(name, name)
         print(f"  {name_str} is thinking...", end="", flush=True)
 
     def agent_done(self):
         """Clear the thinking indicator."""
+        if self.quiet:
+            return
         print(f"\r  {'':40}\r", end="", flush=True)
 
     def agent_response(self, name, speech, action):
         """Show an agent's speech and chosen action."""
+        if self.quiet:
+            return
         name_str = _colored(name, name)
         print(f"  {name_str}: \"{speech}\"")
         print(f"    -> Action: {BOLD}{action}{RESET}")
 
     def agent_speech(self, name, speech):
         """Show just a speech bubble (for non-action prompts)."""
+        if self.quiet:
+            return
         name_str = _colored(name, name)
         print(f"  {name_str}: \"{speech}\"")
 
     def game_event(self, text):
         """Print a game event from the controller log."""
+        if self.quiet:
+            return
         print(f"  {DIM}[Event]{RESET} {text}")
 
     def agent_error(self, name, attempt, error_msg):
@@ -82,11 +106,15 @@ class ConsoleOutput:
 
     def agent_fallback(self, name, action):
         """Show that an agent fell back to a default action."""
+        if self.quiet:
+            return
         name_str = _colored(name, name)
         print(f"  {DIM}[Fallback] {name_str} defaulting to: {action}{RESET}")
 
     def game_state_summary(self, controller):
         """Print compact state table after each turn."""
+        if self.quiet:
+            return
         print(f"  {DIM}Status:", end="")
         for p in controller.game.players:
             if p.is_alive():
@@ -97,6 +125,8 @@ class ConsoleOutput:
 
     def game_over(self, winner_name):
         """Print game over banner."""
+        if self.quiet:
+            return
         winner_str = _colored(winner_name, winner_name)
         print(f"\n{BOLD}{'=' * 60}")
         print(f"  GAME OVER — {winner_str} WINS!")
@@ -104,6 +134,8 @@ class ConsoleOutput:
 
     def token_usage(self, agents):
         """Print token usage summary for each agent."""
+        if self.quiet:
+            return
         print(f"{BOLD}Token Usage:{RESET}")
         for agent in agents:
             total = agent.prompt_tokens + agent.completion_tokens
