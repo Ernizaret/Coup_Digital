@@ -1,5 +1,6 @@
 """Tests for the GameController state machine."""
 
+import random
 import unittest
 from src.controller import GameController, State
 
@@ -512,6 +513,50 @@ class TestGetActivePlayer(unittest.TestCase):
         gc.handle_input("Bob")
         self.assertEqual(gc.state, State.GAME_OVER)
         self.assertIsNone(gc.get_active_player())
+
+
+class TestSeededController(unittest.TestCase):
+    """Tests for the seed/rng system threaded through the controller."""
+
+    def test_rng_default_is_none(self):
+        gc = GameController()
+        self.assertIsNone(gc.rng)
+
+    def test_rng_reset_clears(self):
+        gc = GameController()
+        gc.rng = random.Random(42)
+        gc.reset()
+        self.assertIsNone(gc.rng)
+
+    def test_seeded_controller_produces_deterministic_deals(self):
+        """Same seed through the controller yields identical initial hands."""
+        gc1 = GameController()
+        gc1.rng = random.Random(42)
+        gc1.handle_input("2")
+        gc1.handle_input("Alice")
+        gc1.handle_input("Bob")
+
+        gc2 = GameController()
+        gc2.rng = random.Random(42)
+        gc2.handle_input("2")
+        gc2.handle_input("Alice")
+        gc2.handle_input("Bob")
+
+        for i in range(2):
+            self.assertEqual(
+                gc1.game.players[i].influence,
+                gc2.game.players[i].influence,
+            )
+
+    def test_no_rng_still_works(self):
+        """Controller without rng set still creates a game fine."""
+        gc = GameController()
+        gc.handle_input("2")
+        gc.handle_input("Alice")
+        gc.handle_input("Bob")
+        self.assertEqual(gc.state, State.CHOOSE_ACTION)
+        for p in gc.game.players:
+            self.assertEqual(len(p.influence), 2)
 
 
 if __name__ == "__main__":

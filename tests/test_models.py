@@ -1,5 +1,6 @@
 """Tests for data model classes: Player, Deck, Game."""
 
+import random
 import unittest
 from src.player import Player
 from src.deck import Deck
@@ -80,6 +81,29 @@ class TestDeck(unittest.TestCase):
         d.return_card("Duke")
         self.assertEqual(d.cards, ["Duke"])
 
+    def test_seeded_draw_is_deterministic(self):
+        """Same seed produces same draw sequence."""
+        rng1 = random.Random(42)
+        rng2 = random.Random(42)
+        d1 = Deck(rng=rng1)
+        d2 = Deck(rng=rng2)
+        for _ in range(15):
+            self.assertEqual(d1.draw(), d2.draw())
+
+    def test_different_seeds_produce_different_draws(self):
+        """Different seeds produce different draw sequences (with high probability)."""
+        d1 = Deck(rng=random.Random(1))
+        d2 = Deck(rng=random.Random(2))
+        draws1 = [d1.draw() for _ in range(15)]
+        draws2 = [d2.draw() for _ in range(15)]
+        self.assertNotEqual(draws1, draws2)
+
+    def test_default_rng_no_crash(self):
+        """Deck without explicit rng works fine."""
+        d = Deck()
+        card = d.draw()
+        self.assertIsNotNone(card)
+
 
 class TestGame(unittest.TestCase):
     def _make_game(self, names=None):
@@ -158,6 +182,72 @@ class TestGame(unittest.TestCase):
         names = [p.name for p in living]
         self.assertIn("A", names)
         self.assertIn("C", names)
+
+    def test_seeded_game_is_deterministic(self):
+        """Same seed deals the same hands."""
+        rng1 = random.Random(42)
+        rng2 = random.Random(42)
+        p1 = [Player("A"), Player("B")]
+        p2 = [Player("A"), Player("B")]
+        g1 = Game(p1, rng=rng1)
+        g2 = Game(p2, rng=rng2)
+        for i in range(len(p1)):
+            self.assertEqual(g1.players[i].influence, g2.players[i].influence)
+        self.assertEqual(len(g1.deck.cards), len(g2.deck.cards))
+
+
+class TestConsoleOutputSeed(unittest.TestCase):
+    """Tests for seed display in ConsoleOutput."""
+
+    def setUp(self):
+        from AI_game.console_output import ConsoleOutput
+        self.output = ConsoleOutput()
+
+    def _capture(self, func, *args, **kwargs):
+        import io, sys
+        buf = io.StringIO()
+        old = sys.stdout
+        sys.stdout = buf
+        try:
+            func(*args, **kwargs)
+        finally:
+            sys.stdout = old
+        return buf.getvalue()
+
+    def _make_controller_stub(self):
+        """Create a minimal stub with .game.players for game_started."""
+        class Stub:
+            pass
+        p = Stub()
+        p.name = "Alice"
+        p.influence = ["Duke", "Captain"]
+        p.coins = 2
+        p.is_alive = lambda: True
+        game = Stub()
+        game.players = [p]
+        ctrl = Stub()
+        ctrl.game = game
+        return ctrl
+
+    def test_game_started_shows_seed(self):
+        ctrl = self._make_controller_stub()
+        text = self._capture(self.output.game_started, ctrl, seed=12345)
+        self.assertIn("12345", text)
+        self.assertIn("Seed", text)
+
+    def test_game_started_no_seed(self):
+        ctrl = self._make_controller_stub()
+        text = self._capture(self.output.game_started, ctrl)
+        self.assertNotIn("Seed", text)
+
+    def test_game_over_shows_seed(self):
+        text = self._capture(self.output.game_over, "Alice", seed=99999)
+        self.assertIn("99999", text)
+        self.assertIn("Seed", text)
+
+    def test_game_over_no_seed(self):
+        text = self._capture(self.output.game_over, "Alice")
+        self.assertNotIn("Seed", text)
 
 
 if __name__ == "__main__":

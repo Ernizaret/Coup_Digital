@@ -33,11 +33,13 @@ def _colored(name, text):
 class ConsoleOutput:
     """Handles all terminal output for spectating an AI Coup game."""
 
-    def game_started(self, controller):
+    def game_started(self, controller, seed=None):
         """Print game start banner and player list."""
         print(f"\n{BOLD}{'=' * 60}")
         print("              COUP — AI AGENT BATTLE")
         print(f"{'=' * 60}{RESET}\n")
+        if seed is not None:
+            print(f"  {DIM}Seed: {seed}{RESET}\n")
         for p in controller.game.players:
             name_str = _colored(p.name, p.name)
             print(f"  {name_str}: {', '.join(p.influence)} ({p.coins} coins)")
@@ -94,11 +96,13 @@ class ConsoleOutput:
                 print(f" {p.name}(OUT)", end="")
         print(f"{RESET}")
 
-    def game_over(self, winner_name):
+    def game_over(self, winner_name, seed=None):
         """Print game over banner."""
         winner_str = _colored(winner_name, winner_name)
         print(f"\n{BOLD}{'=' * 60}")
         print(f"  GAME OVER — {winner_str} WINS!")
+        if seed is not None:
+            print(f"  Seed: {seed}")
         print(f"{'=' * 60}{RESET}\n")
 
     def token_usage(self, agents):

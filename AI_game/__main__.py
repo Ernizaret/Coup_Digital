@@ -1,5 +1,23 @@
-"""Entry point: python -m AI_game"""
+"""Entry point: python -m AI_game [--seed SEED]"""
 
-from AI_game.setup_ui import main
+import argparse
+
+from AI_game.setup_ui import main as ui_main
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run AI Coup games."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible games."
+    )
+    args = parser.parse_args()
+
+    ui_main(seed=args.seed)
+
 
 main()

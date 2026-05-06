@@ -1,5 +1,7 @@
 """Core orchestration loop: drives GameController with AI agents."""
 
+import random
+
 from src.controller import GameController, State
 from AI_game.prompt_builder import build_prompt
 from AI_game.response_parser import parse_response, ParseError
@@ -12,11 +14,12 @@ MAX_RETRIES = 3
 class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
-    def __init__(self, agents):
+    def __init__(self, agents, seed=None):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
             agents: list of Agent instances (2-6 agents)
+            seed:   optional int seed for reproducible games
         """
         self.agents = agents
         self.controller = GameController()
@@ -25,10 +28,18 @@ class GameRunner:
         self._log_cursor = 0      # tracks how far we've consumed controller.log
         self._turn_number = 0
 
+        # Generate or accept seed for reproducible card draws
+        if seed is None:
+            self.seed = random.randint(0, 2**32 - 1)
+        else:
+            self.seed = seed
+        self._rng = random.Random(self.seed)
+        self.controller.rng = self._rng
+
     def run(self):
         """Run the full game from setup to game over."""
         self._setup_game()
-        self.output.game_started(self.controller)
+        self.output.game_started(self.controller, self.seed)
         self._game_loop()
 
     def _setup_game(self):
@@ -99,7 +110,7 @@ class GameRunner:
         if self.controller.state == State.GAME_OVER:
             self._consume_log()
             winner = self.controller.game.get_living_players()[0]
-            self.output.game_over(winner.name)
+            self.output.game_over(winner.name, self.seed)
             self.output.token_usage(self.agents)
             # Record stats — find the winning agent's model
             agent_map = self._build_agent_map()

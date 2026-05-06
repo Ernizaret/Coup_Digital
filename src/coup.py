@@ -3,9 +3,9 @@ from src.deck import Deck
 
 
 class Game:
-    def __init__(self, players):
+    def __init__(self, players, rng=None):
         self.players = players
-        self.deck = Deck()
+        self.deck = Deck(rng=rng)
         self.revealed_cards = []
         self.deal_initial_cards()
 

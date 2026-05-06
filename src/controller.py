@@ -72,6 +72,9 @@ class GameController:
         self.lose_influence_player = None
         self.after_lose_influence = None  # callback string
 
+        # Optional seeded PRNG for reproducible games
+        self.rng = None
+
     def _log(self, msg):
         self.log.append(msg)
 
@@ -269,7 +272,7 @@ class GameController:
         if len(self.player_names) == self.num_players:
             # All names collected — start the game
             players = [Player(n) for n in self.player_names]
-            self.game = Game(players)
+            self.game = Game(players, rng=self.rng)
             self._log("Game started! Cards dealt.")
             self.current_player_index = 0
             self.current_player = self.game.players[0]
