@@ -1,0 +1,44 @@
+{
+  "presets": {
+    "assassin_mirror": {
+      "description": "Both players start with Assassin + Duke, 2 coins",
+      "players": {
+        "Claude": {"hand": ["Assassin", "Duke"], "coins": 2},
+        "Gemini": {"hand": ["Assassin", "Duke"], "coins": 2}
+      },
+      "deck": "auto"
+    },
+    "late_game": {
+      "description": "High coin counts, aggressive opening",
+      "players": {
+        "Claude": {"hand": ["Captain", "Contessa"], "coins": 6},
+        "Gemini": {"hand": ["Duke", "Ambassador"], "coins": 8}
+      },
+      "deck": "auto"
+    },
+    "one_influence_each": {
+      "description": "Each player starts with only 1 influence card — sudden death",
+      "players": {
+        "Claude": {"hand": ["Duke"], "coins": 2},
+        "Gemini": {"hand": ["Captain"], "coins": 2}
+      },
+      "deck": "auto"
+    },
+    "captain_wars": {
+      "description": "Both players have Captains — stealing battles",
+      "players": {
+        "Claude": {"hand": ["Captain", "Ambassador"], "coins": 3},
+        "Gemini": {"hand": ["Captain", "Contessa"], "coins": 3}
+      },
+      "deck": "auto"
+    },
+    "custom_deck": {
+      "description": "Preset with an explicit remaining deck",
+      "players": {
+        "Claude": {"hand": ["Duke", "Duke"], "coins": 2},
+        "Gemini": {"hand": ["Assassin", "Assassin"], "coins": 2}
+      },
+      "deck": ["Duke", "Assassin", "Captain", "Captain", "Captain", "Contessa", "Contessa", "Contessa", "Ambassador", "Ambassador", "Ambassador"]
+    }
+  }
+}

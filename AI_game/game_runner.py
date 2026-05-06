@@ -1,6 +1,8 @@
 """Core orchestration loop: drives GameController with AI agents."""
 
 from src.controller import GameController, State
+from src.coup import Game
+from src.deck import Deck
 from AI_game.prompt_builder import build_prompt
 from AI_game.response_parser import parse_response, ParseError
 from AI_game.console_output import ConsoleOutput
@@ -12,13 +14,15 @@ MAX_RETRIES = 3
 class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
-    def __init__(self, agents):
+    def __init__(self, agents, preset=None):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
             agents: list of Agent instances (2-6 agents)
+            preset: optional validated preset dict to apply custom start conditions
         """
         self.agents = agents
+        self.preset = preset
         self.controller = GameController()
         self.output = ConsoleOutput()
         self.event_log = []       # list of {"type": "event"/"speech", ...}
@@ -32,7 +36,20 @@ class GameRunner:
         self._game_loop()
 
     def _setup_game(self):
-        """Programmatically feed setup inputs to bypass the UI setup states."""
+        """Programmatically feed setup inputs to bypass the UI setup states.
+
+        If a preset is configured, applies custom start conditions (hands,
+        coins, deck) after the standard setup creates the Game object.
+        """
+        if self.preset is not None:
+            self._setup_game_with_preset()
+        else:
+            self._setup_game_standard()
+
+        self._consume_log()
+
+    def _setup_game_standard(self):
+        """Standard setup: feed player count and names to the controller."""
         # Step 1: Set player count
         self.controller.handle_input(str(len(self.agents)))
 
@@ -40,7 +57,36 @@ class GameRunner:
         for agent in self.agents:
             self.controller.handle_input(agent.name)
 
-        self._consume_log()
+    def _setup_game_with_preset(self):
+        """Setup with preset: create a pre-configured Game and inject it."""
+        from AI_game.presets import apply_preset
+
+        players, deck_cards = apply_preset(self.preset, self.agents)
+        deck = Deck(cards=deck_cards)
+
+        # For players that have no hand specified in preset, deal from deck
+        players_cfg = self.preset.get("players", {})
+        for player in players:
+            cfg = players_cfg.get(player.name, {})
+            if cfg.get("hand") is None:
+                # Deal 2 cards from the deck as normal
+                card1 = deck.draw()
+                card2 = deck.draw()
+                if card1:
+                    player.add_influence(card1)
+                if card2:
+                    player.add_influence(card2)
+
+        game = Game(players, deck=deck, skip_deal=True)
+
+        # Inject the game into the controller, bypassing setup states
+        self.controller.game = game
+        self.controller.num_players = len(players)
+        self.controller.player_names = [p.name for p in players]
+        self.controller.current_player_index = 0
+        self.controller.current_player = game.players[0]
+        self.controller.state = State.CHOOSE_ACTION
+        self.controller._log("Game started with preset! Cards dealt.")
 
     def _build_agent_map(self):
         """Map player names to Agent instances."""

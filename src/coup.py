@@ -3,11 +3,12 @@ from src.deck import Deck
 
 
 class Game:
-    def __init__(self, players):
+    def __init__(self, players, deck=None, skip_deal=False):
         self.players = players
-        self.deck = Deck()
+        self.deck = deck if deck is not None else Deck()
         self.revealed_cards = []
-        self.deal_initial_cards()
+        if not skip_deal:
+            self.deal_initial_cards()
 
     def deal_initial_cards(self):
         for player in self.players:
