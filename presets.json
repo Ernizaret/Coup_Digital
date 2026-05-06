@@ -1,0 +1,44 @@
+{
+    "presets": {
+        "assassin_mirror": {
+            "description": "Both players start with Assassin + Duke, 2 coins",
+            "players": {
+                "Claude": {"hand": ["Assassin", "Duke"], "coins": 2},
+                "Gemini": {"hand": ["Assassin", "Duke"], "coins": 2}
+            },
+            "deck": "auto"
+        },
+        "late_game": {
+            "description": "High coin counts, aggressive opening",
+            "players": {
+                "Claude": {"hand": ["Captain", "Contessa"], "coins": 6},
+                "Gemini": {"hand": ["Duke", "Ambassador"], "coins": 8}
+            },
+            "deck": "auto"
+        },
+        "captain_duel": {
+            "description": "Both players have Captain + Ambassador — steal wars",
+            "players": {
+                "Claude": {"hand": ["Captain", "Ambassador"], "coins": 2},
+                "Gemini": {"hand": ["Captain", "Ambassador"], "coins": 2}
+            },
+            "deck": "auto"
+        },
+        "one_card_each": {
+            "description": "Sudden death — each player has only 1 influence card",
+            "players": {
+                "Claude": {"hand": ["Duke"], "coins": 5},
+                "Gemini": {"hand": ["Assassin"], "coins": 5}
+            },
+            "deck": "auto"
+        },
+        "contessa_vs_assassin": {
+            "description": "Assassin player vs Contessa player — will the block happen?",
+            "players": {
+                "Claude": {"hand": ["Assassin", "Duke"], "coins": 3},
+                "Gemini": {"hand": ["Contessa", "Captain"], "coins": 2}
+            },
+            "deck": "auto"
+        }
+    }
+}
