@@ -43,14 +43,17 @@ class ConsoleOutput:
     def __init__(self, quiet=False):
         self.quiet = quiet
 
-    def game_started(self, controller, prompt_mode="heavy"):
+    def game_started(self, controller, prompt_mode="heavy", seed=None):
         """Print game start banner and player list."""
         if self.quiet:
             return
         print(f"\n{BOLD}{'=' * 60}")
         print("              COUP — AI AGENT BATTLE")
         print(f"{'=' * 60}{RESET}")
-        print(f"  Prompt mode: {BOLD}{prompt_mode}{RESET}\n")
+        print(f"  Prompt mode: {BOLD}{prompt_mode}{RESET}")
+        if seed is not None:
+            print(f"  Game seed:   {BOLD}{seed}{RESET}")
+        print()
         for p in controller.game.players:
             name_str = _colored(p.name, p.name)
             print(f"  {name_str}: {', '.join(p.influence)} ({p.coins} coins)")

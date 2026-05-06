@@ -15,7 +15,7 @@ class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
     def __init__(self, agents, prompt_mode="heavy", quiet=False, log=True,
-                 preset_name=None):
+                 preset_name=None, seed=None):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
@@ -25,11 +25,14 @@ class GameRunner:
             log: if True, write a markdown transcript to AI_game/logs/
             preset_name: optional preset name from presets.json to configure
                 custom starting conditions (hands, coins, deck).
+            seed: optional integer seed for deterministic randomness.
+                If None, a random seed is generated automatically.
         """
         self.agents = agents
         self.prompt_mode = prompt_mode
         self.preset_name = preset_name
-        self.controller = GameController()
+        self.seed = seed
+        self.controller = GameController(seed=seed)
         self.output = ConsoleOutput(quiet=quiet)
         self.log_writer = LogWriter() if log else None
         self.event_log = []       # list of {"type": "event"/"speech", ...}
@@ -41,14 +44,18 @@ class GameRunner:
 
         Returns:
             dict with game result info, or None if the game ended abnormally.
-            Keys: "winner_name", "winner_model", "agents" (list of Agent instances).
+            Keys: "winner_name", "winner_model", "agents", "seed".
         """
         self._setup_game()
         if self.preset_name:
             self._apply_preset()
-        self.output.game_started(self.controller, self.prompt_mode)
+        # Capture the actual seed from the Game object (auto-generated if none provided)
+        self.seed = self.controller.game.seed
+        self.output.game_started(self.controller, self.prompt_mode,
+                                 seed=self.seed)
         if self.log_writer:
-            self.log_writer.game_started(self.controller, self.prompt_mode)
+            self.log_writer.game_started(self.controller, self.prompt_mode,
+                                         seed=self.seed)
             self.log_writer.set_agents(self.agents)
         return self._game_loop()
 
@@ -161,11 +168,13 @@ class GameRunner:
             if self.log_writer:
                 self.log_writer.game_over(winner.name,
                                           winner_agent=winner_agent)
-            record_game(self.agents, winner_agent.model, self.prompt_mode)
+            record_game(self.agents, winner_agent.model, self.prompt_mode,
+                        seed=self.seed)
             return {
                 "winner_name": winner.name,
                 "winner_model": winner_agent.model,
                 "agents": self.agents,
+                "seed": self.seed,
             }
         return None
 

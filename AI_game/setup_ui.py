@@ -247,11 +247,13 @@ def save_preset_to_file(preset_name, preset_data):
 class AgentSetupWindow:
     """Setup window for selecting AI agents and configuring turn order."""
 
-    def __init__(self, root, prompt_mode_override=None, preset_name=None):
+    def __init__(self, root, prompt_mode_override=None, preset_name=None,
+                 seed=None):
         self.root = root
         self.root.title("Coup \u2014 AI Agent Setup")
         self.root.minsize(520, 500)
         self.preset_name = preset_name
+        self._cli_seed = seed  # seed from CLI argument (None = auto-generate)
 
         # Load config
         try:
@@ -347,6 +349,23 @@ class AgentSetupWindow:
             textvariable=self._game_count_var,
             font=("Helvetica", 11))
         self._game_count_spin.pack(side=tk.LEFT, padx=(8, 0))
+
+        # ---- Seed entry ----
+        seed_frame = tk.Frame(self._main_frame)
+        seed_frame.pack(fill=tk.X, padx=15, pady=(5, 5))
+
+        tk.Label(seed_frame, text="Seed (optional):",
+                 font=("Helvetica", 11)).pack(side=tk.LEFT)
+
+        self._seed_var = tk.StringVar(
+            value=str(self._cli_seed) if self._cli_seed is not None else "")
+        self._seed_entry = tk.Entry(
+            seed_frame, textvariable=self._seed_var,
+            font=("Helvetica", 11), width=15)
+        self._seed_entry.pack(side=tk.LEFT, padx=(8, 0))
+
+        tk.Label(seed_frame, text="(empty = random)",
+                 font=("Helvetica", 9)).pack(side=tk.LEFT, padx=(5, 0))
 
         # ---- Collapsible custom start conditions ----
         self._custom_toggle_btn = tk.Button(
@@ -721,12 +740,23 @@ class AgentSetupWindow:
         except (ValueError, TypeError):
             return 1
 
+    def _get_seed(self):
+        """Return the seed as an integer, or None if empty/invalid."""
+        raw = self._seed_var.get().strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except (ValueError, TypeError):
+            return None
+
     # ----- Start game -----
 
     def _start_game(self):
         """Create Agent instances and launch the game runner."""
         agent_names = self._get_agent_names()
         game_count = self._get_game_count()
+        seed = self._get_seed()
 
         # Build preset from custom conditions (if any are non-default)
         preset_name = None
@@ -762,14 +792,15 @@ class AgentSetupWindow:
             # Single game
             agents = create_agents_from_names(agent_names, self.config)
             runner = GameRunner(agents, prompt_mode=self.prompt_mode,
-                                preset_name=preset_name)
+                                preset_name=preset_name, seed=seed)
             if inline_preset is not None:
                 self._apply_inline_preset(runner, inline_preset)
             runner.run()
         else:
             # Multi-game run
             self._run_multi_game(
-                agent_names, game_count, preset_name, inline_preset)
+                agent_names, game_count, preset_name, inline_preset,
+                seed=seed)
 
     def _apply_inline_preset(self, runner, inline_preset):
         """Monkey-patch a GameRunner so it applies an inline preset dict
@@ -798,7 +829,7 @@ class AgentSetupWindow:
         runner._apply_preset = patched_apply
 
     def _run_multi_game(self, agent_names, game_count, preset_name,
-                        inline_preset):
+                        inline_preset, seed=None):
         """Execute multiple games and print progress and summary."""
         results = []
         errors = []
@@ -813,6 +844,8 @@ class AgentSetupWindow:
             print(f"  Custom setup:  yes")
         elif preset_name:
             print(f"  Preset:        {preset_name}")
+        if seed is not None:
+            print(f"  Starting seed: {seed}")
         print()
 
         start_time = time.time()
@@ -820,10 +853,14 @@ class AgentSetupWindow:
         for game_num in range(1, game_count + 1):
             try:
                 agents = create_agents_from_names(agent_names, self.config)
+
+                # Compute per-game seed: if a base seed was given, increment it
+                game_seed = (seed + game_num - 1) if seed is not None else None
+
                 runner = GameRunner(
                     agents, prompt_mode=self.prompt_mode,
                     quiet=(game_count > 5),
-                    preset_name=preset_name)
+                    preset_name=preset_name, seed=game_seed)
 
                 if inline_preset is not None:
                     self._apply_inline_preset(runner, inline_preset)
@@ -833,9 +870,11 @@ class AgentSetupWindow:
                 if result is not None:
                     results.append(result)
                     winner = result["winner_name"]
+                    game_seed_display = result.get("seed", "?")
                     print(
                         f"  Game {game_num}/{game_count} complete "
-                        f"\u2014 winner: {BOLD}{winner}{RESET}"
+                        f"\u2014 winner: {BOLD}{winner}{RESET} "
+                        f"(seed: {game_seed_display})"
                     )
                 else:
                     errors.append(
@@ -953,10 +992,10 @@ class AgentSetupWindow:
         print()
 
 
-def main(prompt_mode_override=None, preset_name=None):
+def main(prompt_mode_override=None, preset_name=None, seed=None):
     root = tk.Tk()
     AgentSetupWindow(root, prompt_mode_override=prompt_mode_override,
-                     preset_name=preset_name)
+                     preset_name=preset_name, seed=seed)
     root.mainloop()
 
 

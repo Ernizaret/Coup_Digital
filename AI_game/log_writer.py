@@ -23,8 +23,8 @@ class LogWriter:
         self._header_info = {}    # populated in game_started()
         self._timestamp = datetime.now()
 
-    def game_started(self, controller, prompt_mode="heavy"):
-        """Record header info (date, players, models).
+    def game_started(self, controller, prompt_mode="heavy", seed=None):
+        """Record header info (date, players, models, seed).
 
         The header is written to the file later in game_over() once we
         know the winner.
@@ -36,6 +36,7 @@ class LogWriter:
             "date": self._timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "players": players,
             "prompt_mode": prompt_mode,
+            "seed": seed,
         }
 
     def turn_start(self, player_name, turn_number):
@@ -76,6 +77,11 @@ class LogWriter:
         doc = []
         doc.append("# Coup \u2014 AI Game Transcript")
         doc.append(f"**Date:** {self._header_info.get('date', 'unknown')}")
+
+        # Seed line
+        seed = self._header_info.get("seed")
+        if seed is not None:
+            doc.append(f"**Seed:** {seed}")
 
         # Players line
         players_str = ", ".join(agents_info)

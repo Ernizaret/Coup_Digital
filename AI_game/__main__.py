@@ -28,8 +28,17 @@ def _parse_args():
             "conditions (hands, coins, deck composition)."
         ),
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help=(
+            "Integer seed for deterministic randomness. If omitted, a random "
+            "seed is generated and displayed so the game can be replayed."
+        ),
+    )
     return parser.parse_args()
 
 
 args = _parse_args()
-main(prompt_mode_override=args.mode, preset_name=args.preset)
+main(prompt_mode_override=args.mode, preset_name=args.preset, seed=args.seed)
