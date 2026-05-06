@@ -68,6 +68,13 @@ def _parse_args():
             "conditions (hands, coins, deck composition). Applied to every game."
         ),
     )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help=(
+            "Integer seed for the first game. Subsequent games use "
+            "seed+1, seed+2, etc. If omitted, each game generates its own seed."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -113,7 +120,7 @@ def _resolve_agent_names(agents_arg, config):
 
 
 def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
-              log=True, preset_name=None):
+              log=True, preset_name=None, seed=None):
     """Execute the bulk game loop.
 
     Returns:
@@ -131,6 +138,8 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
     print(f"  Prompt mode:   {prompt_mode}")
     if preset_name:
         print(f"  Preset:        {preset_name}")
+    if seed is not None:
+        print(f"  Starting seed: {seed}")
     print(f"  Quiet mode:    {'on' if quiet else 'off'}")
     if delay > 0:
         print(f"  Delay:         {delay}s between games")
@@ -143,16 +152,22 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
             # Create fresh agents for each game
             agents = create_agents_from_names(agent_display_names, config)
 
+            # Compute per-game seed: if a base seed was given, increment it
+            game_seed = (seed + game_num - 1) if seed is not None else None
+
             runner = GameRunner(agents, prompt_mode=prompt_mode, quiet=quiet,
-                                log=log, preset_name=preset_name)
+                                log=log, preset_name=preset_name,
+                                seed=game_seed)
             result = runner.run()
 
             if result is not None:
                 results.append(result)
                 winner = result["winner_name"]
+                game_seed_display = result.get("seed", "?")
                 print(
                     f"  Game {game_num}/{num_games} complete "
-                    f"— winner: {BOLD}{winner}{RESET}"
+                    f"— winner: {BOLD}{winner}{RESET} "
+                    f"(seed: {game_seed_display})"
                 )
             else:
                 errors.append((game_num, "Game ended abnormally (no winner)"))
@@ -307,6 +322,7 @@ def main():
         delay=args.delay,
         log=not args.no_logs,
         preset_name=args.preset,
+        seed=args.seed,
     )
 
 

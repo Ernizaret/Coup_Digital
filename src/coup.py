@@ -1,11 +1,18 @@
+import random
+
 from src.player import Player
 from src.deck import Deck
 
 
 class Game:
-    def __init__(self, players, skip_deal=False, deck_cards=None):
+    def __init__(self, players, skip_deal=False, deck_cards=None, seed=None):
         self.players = players
-        self.deck = Deck(cards=deck_cards)
+        if seed is not None:
+            self.seed = seed
+        else:
+            self.seed = random.randint(0, 2**32 - 1)
+        self.rng = random.Random(self.seed)
+        self.deck = Deck(cards=deck_cards, rng=self.rng)
         self.revealed_cards = []
         if not skip_deal:
             self.deal_initial_cards()

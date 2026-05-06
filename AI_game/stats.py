@@ -2,11 +2,16 @@
 
 import csv
 import os
+from datetime import datetime
 
 STATS_FILE = os.path.join(os.path.dirname(__file__), "winrates.csv")
+GAME_LOG_FILE = os.path.join(os.path.dirname(__file__), "game_log.csv")
 FIELDNAMES = [
     "model", "prompt_mode", "games_played", "games_won", "win_rate",
     "total_tokens", "cached_tokens", "total_queries", "avg_tokens_per_query",
+]
+GAME_LOG_FIELDNAMES = [
+    "timestamp", "seed", "winner_model", "prompt_mode", "players",
 ]
 
 
@@ -65,13 +70,33 @@ def _save_stats(stats):
             })
 
 
-def record_game(agents, winner_model, prompt_mode="heavy"):
+def _append_game_log(agents, winner_model, prompt_mode, seed):
+    """Append a single game entry to the per-game log CSV."""
+    file_exists = os.path.exists(GAME_LOG_FILE)
+    with open(GAME_LOG_FILE, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=GAME_LOG_FIELDNAMES)
+        if not file_exists:
+            writer.writeheader()
+        players = ", ".join(
+            f"{getattr(a, 'name', '?')} ({a.model})" for a in agents
+        )
+        writer.writerow({
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "seed": seed if seed is not None else "",
+            "winner_model": winner_model,
+            "prompt_mode": prompt_mode,
+            "players": players,
+        })
+
+
+def record_game(agents, winner_model, prompt_mode="heavy", seed=None):
     """Record a completed game for all participating agents.
 
     Args:
         agents: list of Agent instances that participated.
         winner_model: the model string of the winning agent.
         prompt_mode: "heavy" or "light" — which prompt mode was used.
+        seed: the game seed (integer) for reproducibility tracking.
     """
     stats = _load_stats()
 
@@ -98,3 +123,4 @@ def record_game(agents, winner_model, prompt_mode="heavy"):
     stats[winner_key]["games_won"] += 1
 
     _save_stats(stats)
+    _append_game_log(agents, winner_model, prompt_mode, seed)

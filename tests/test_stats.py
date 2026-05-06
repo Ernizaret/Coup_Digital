@@ -105,13 +105,17 @@ class TestRecordGame(unittest.TestCase):
     def test_records_new_game(self):
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
             path = f.name
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f2:
+            log_path = f2.name
         try:
             os.remove(path)
+            os.remove(log_path)
             agents = [
                 FakeAgent("model-a", prompt_tokens=100, completion_tokens=50, query_count=5),
                 FakeAgent("model-b", prompt_tokens=200, completion_tokens=100, query_count=8),
             ]
-            with patch("AI_game.stats.STATS_FILE", path):
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
                 record_game(agents, "model-a", prompt_mode="heavy")
                 stats = _load_stats()
 
@@ -125,17 +129,23 @@ class TestRecordGame(unittest.TestCase):
         finally:
             if os.path.exists(path):
                 os.remove(path)
+            if os.path.exists(log_path):
+                os.remove(log_path)
 
     def test_accumulates_across_games(self):
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
             path = f.name
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f2:
+            log_path = f2.name
         try:
             os.remove(path)
+            os.remove(log_path)
             agents = [
                 FakeAgent("model-a", prompt_tokens=10, completion_tokens=5, query_count=2),
                 FakeAgent("model-b", prompt_tokens=20, completion_tokens=10, query_count=3),
             ]
-            with patch("AI_game.stats.STATS_FILE", path):
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
                 record_game(agents, "model-a", prompt_mode="light")
                 # Reset token counts for second game
                 agents[0].prompt_tokens = 10
@@ -154,6 +164,8 @@ class TestRecordGame(unittest.TestCase):
         finally:
             if os.path.exists(path):
                 os.remove(path)
+            if os.path.exists(log_path):
+                os.remove(log_path)
 
 
 if __name__ == "__main__":
