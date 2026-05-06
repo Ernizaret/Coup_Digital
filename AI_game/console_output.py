@@ -113,3 +113,52 @@ class ConsoleOutput:
                   f"{agent.completion_tokens:,} completion) "
                   f"| {ratio:,.0f} tokens/query over {agent.query_count} queries")
         print()
+
+    def batch_progress(self, game_num, total, winner_name):
+        """Print progress line after each game in a batch run."""
+        winner_str = _colored(winner_name, winner_name)
+        print(f"  Game {game_num}/{total} complete — winner: {winner_str}")
+
+    def batch_summary(self, results, agents):
+        """Print win rates and cumulative token usage after a batch run.
+
+        Args:
+            results: list of winner names (one per game).
+            agents: list of all Agent instances across all games.
+        """
+        from collections import Counter
+
+        print(f"\n{BOLD}{'=' * 60}")
+        print("              BATCH RESULTS")
+        print(f"{'=' * 60}{RESET}\n")
+
+        wins = Counter(results)
+        total = len(results)
+
+        print(f"  {total} games played:\n")
+        for name, count in wins.most_common():
+            rate = count / total * 100
+            name_str = _colored(name, name)
+            bar = "█" * int(rate / 5)
+            print(f"  {name_str}: {count} wins ({rate:.1f}%) {bar}")
+
+        print(f"\n{BOLD}Token Usage (cumulative):{RESET}")
+        # Aggregate by agent name
+        agent_totals = {}
+        for agent in agents:
+            if agent.name not in agent_totals:
+                agent_totals[agent.name] = {"tokens": 0, "queries": 0}
+            agent_totals[agent.name]["tokens"] += (
+                agent.prompt_tokens + agent.completion_tokens
+            )
+            agent_totals[agent.name]["queries"] += agent.query_count
+
+        for name, data in agent_totals.items():
+            name_str = _colored(name, name)
+            avg = data["tokens"] / data["queries"] if data["queries"] else 0
+            print(
+                f"  {name_str}: {data['tokens']:,} tokens "
+                f"| {data['queries']} queries "
+                f"| {avg:,.0f} tokens/query"
+            )
+        print()
