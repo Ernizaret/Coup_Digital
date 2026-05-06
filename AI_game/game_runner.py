@@ -12,13 +12,15 @@ MAX_RETRIES = 3
 class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
-    def __init__(self, agents):
+    def __init__(self, agents, prompt_mode="heavy"):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
             agents: list of Agent instances (2-6 agents)
+            prompt_mode: "heavy" or "light" — controls prompt verbosity
         """
         self.agents = agents
+        self.prompt_mode = prompt_mode
         self.controller = GameController()
         self.output = ConsoleOutput()
         self.event_log = []       # list of {"type": "event"/"speech", ...}
@@ -28,7 +30,7 @@ class GameRunner:
     def run(self):
         """Run the full game from setup to game over."""
         self._setup_game()
-        self.output.game_started(self.controller)
+        self.output.game_started(self.controller, self.prompt_mode)
         self._game_loop()
 
     def _setup_game(self):
@@ -104,14 +106,15 @@ class GameRunner:
             # Record stats — find the winning agent's model
             agent_map = self._build_agent_map()
             winner_agent = agent_map[winner.name]
-            record_game(self.agents, winner_agent.model)
+            record_game(self.agents, winner_agent.model, self.prompt_mode)
 
     def _query_agent(self, agent, player, options):
         """Build prompt, query agent, parse response. Retry on failure.
 
         Returns (action, speech) tuple.
         """
-        prompt = build_prompt(self.controller, player, agent, self.event_log)
+        prompt = build_prompt(self.controller, player, agent, self.event_log,
+                              prompt_mode=self.prompt_mode)
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:

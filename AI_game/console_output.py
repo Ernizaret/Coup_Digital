@@ -33,11 +33,12 @@ def _colored(name, text):
 class ConsoleOutput:
     """Handles all terminal output for spectating an AI Coup game."""
 
-    def game_started(self, controller):
+    def game_started(self, controller, prompt_mode="heavy"):
         """Print game start banner and player list."""
         print(f"\n{BOLD}{'=' * 60}")
         print("              COUP — AI AGENT BATTLE")
-        print(f"{'=' * 60}{RESET}\n")
+        print(f"{'=' * 60}{RESET}")
+        print(f"  Prompt mode: {BOLD}{prompt_mode}{RESET}\n")
         for p in controller.game.players:
             name_str = _colored(p.name, p.name)
             print(f"  {name_str}: {', '.join(p.influence)} ({p.coins} coins)")

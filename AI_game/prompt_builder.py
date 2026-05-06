@@ -22,27 +22,47 @@ ACTIONS:
 - Coup: Pay 7 coins, target loses 1 influence. (No card claim, cannot be blocked, MANDATORY at 10+ coins)
 """
 
+RULES_SUMMARY_LIGHT = """\
+COUP: 2 coins, 2 hidden cards each. Cards: Duke, Assassin, Captain, Contessa, Ambassador (3 each).
+Actions: Income(+1), Foreign Aid(+2, blocked by Duke), Tax(+3, Duke), Steal(+2 from target, Captain, blocked by Ambassador/Captain), Exchange(draw 2 return 2, Ambassador), Assassinate(pay 3, target -1 influence, Assassin, blocked by Contessa), Coup(pay 7, target -1 influence, mandatory at 10+).
+Challenge: have card = challenger loses influence; don't have = you lose, action cancelled. Blocks can be challenged too.
+"""
 
-def build_prompt(controller, player, agent, event_log):
+# Number of log entries to include in each mode
+_LOG_WINDOW_HEAVY = 30
+_LOG_WINDOW_LIGHT = 10
+
+
+def build_prompt(controller, player, agent, event_log, prompt_mode="heavy"):
     """Build a prompt string for an AI agent given the current game state.
 
-    Uses the full response format (speech + action + private_thought) for
-    CHOOSE_ACTION, and a slim action-only format for all other states.
+    In heavy mode (default): uses full response format (with private_thought)
+    for CHOOSE_ACTION, slim format for other states. Includes full rules
+    summary and larger game log window.
+
+    In light mode: always uses slim response format (no private_thought),
+    uses shorter rules summary, smaller game log window, and omits private
+    thoughts from the private info section.
 
     Args:
         controller: GameController instance
         player: Player object for this agent
         agent: Agent instance (for private thoughts)
         event_log: list of {"type": "event"/"speech", ...} dicts
+        prompt_mode: "heavy" or "light"
     """
+    is_light = prompt_mode == "light"
     is_turn = controller.state == State.CHOOSE_ACTION
+    use_full_format = is_turn and not is_light
+    log_window = _LOG_WINDOW_LIGHT if is_light else _LOG_WINDOW_HEAVY
+
     sections = [
-        RULES_SUMMARY,
+        RULES_SUMMARY_LIGHT if is_light else RULES_SUMMARY,
         _game_state_section(controller, player),
-        _private_info_section(player, agent),
-        _public_log_section(event_log),
+        _private_info_section(player, agent, include_thoughts=not is_light),
+        _public_log_section(event_log, log_window=log_window),
         _decision_section(controller, player),
-        _response_format_full() if is_turn else _response_format_slim(),
+        _response_format_full() if use_full_format else _response_format_slim(),
     ]
     return "\n".join(sections)
 
@@ -72,23 +92,23 @@ def _game_state_section(controller, player):
     return "\n".join(lines)
 
 
-def _private_info_section(player, agent):
+def _private_info_section(player, agent, include_thoughts=True):
     """Private information only this player can see."""
     lines = ["YOUR PRIVATE INFO:"]
     lines.append(f"Your cards: {', '.join(player.influence)}")
     lines.append(f"Your coins: {player.coins}")
-    lines.append(f"Your previous private thoughts:\n{agent.get_thoughts_text()}")
+    if include_thoughts:
+        lines.append(f"Your previous private thoughts:\n{agent.get_thoughts_text()}")
     return "\n".join(lines)
 
 
-def _public_log_section(event_log):
+def _public_log_section(event_log, log_window=_LOG_WINDOW_HEAVY):
     """Recent public history of events and speech."""
     lines = ["PUBLIC GAME LOG:"]
     if not event_log:
         lines.append("  (Game just started — no events yet)")
     else:
-        # Show last 30 entries to keep prompt manageable
-        recent = event_log[-30:]
+        recent = event_log[-log_window:]
         for entry in recent:
             if entry["type"] == "event":
                 lines.append(f"  [Event] {entry['text']}")
