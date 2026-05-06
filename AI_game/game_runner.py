@@ -1,7 +1,7 @@
 """Core orchestration loop: drives GameController with AI agents."""
 
 from src.controller import GameController, State
-from AI_game.prompt_builder import build_prompt
+from AI_game.prompt_builder import build_prompt_sections
 from AI_game.response_parser import parse_response, ParseError
 from AI_game.console_output import ConsoleOutput
 from AI_game.stats import record_game
@@ -113,13 +113,15 @@ class GameRunner:
 
         Returns (action, speech) tuple.
         """
-        prompt = build_prompt(self.controller, player, agent, self.event_log,
-                              prompt_mode=self.prompt_mode)
+        prompt_sections = build_prompt_sections(
+            self.controller, player, agent, self.event_log,
+            prompt_mode=self.prompt_mode,
+        )
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 self.output.agent_thinking(agent.name)
-                raw = agent.query(prompt)
+                raw = agent.query_structured(prompt_sections)
                 self.output.agent_done()
 
                 result = parse_response(raw, options)

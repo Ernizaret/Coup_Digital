@@ -109,8 +109,14 @@ class ConsoleOutput:
             total = agent.prompt_tokens + agent.completion_tokens
             ratio = total / agent.query_count if agent.query_count else 0
             name_str = _colored(agent.name, agent.name)
+            cached = agent.cached_tokens
+            cache_pct = (
+                f"{cached / agent.prompt_tokens * 100:.0f}%"
+                if agent.prompt_tokens > 0 else "0%"
+            )
             print(f"  {name_str}: {total:,} tokens "
                   f"({agent.prompt_tokens:,} prompt + "
                   f"{agent.completion_tokens:,} completion) "
+                  f"| cached: {cached:,} ({cache_pct} of prompt) "
                   f"| {ratio:,.0f} tokens/query over {agent.query_count} queries")
         print()

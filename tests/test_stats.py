@@ -14,10 +14,12 @@ from AI_game.stats import (
 class FakeAgent:
     """Minimal agent stub for testing record_game."""
 
-    def __init__(self, model, prompt_tokens=0, completion_tokens=0, query_count=0):
+    def __init__(self, model, prompt_tokens=0, completion_tokens=0,
+                 cached_tokens=0, query_count=0):
         self.model = model
         self.prompt_tokens = prompt_tokens
         self.completion_tokens = completion_tokens
+        self.cached_tokens = cached_tokens
         self.query_count = query_count
 
 
@@ -58,6 +60,7 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
                     "games_played": 10,
                     "games_won": 4,
                     "total_tokens": 5000,
+                    "cached_tokens": 2000,
                     "total_queries": 50,
                 },
             }
@@ -67,6 +70,7 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
             self.assertEqual(loaded["model-a|heavy"]["games_played"], 10)
             self.assertEqual(loaded["model-a|heavy"]["games_won"], 4)
             self.assertEqual(loaded["model-a|heavy"]["total_tokens"], 5000)
+            self.assertEqual(loaded["model-a|heavy"]["cached_tokens"], 2000)
         finally:
             os.remove(path)
 
@@ -81,6 +85,7 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
                     "games_played": 10,
                     "games_won": 3,
                     "total_tokens": 0,
+                    "cached_tokens": 0,
                     "total_queries": 0,
                 },
             }

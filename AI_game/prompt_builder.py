@@ -33,8 +33,14 @@ _LOG_WINDOW_HEAVY = 30
 _LOG_WINDOW_LIGHT = 10
 
 
-def build_prompt(controller, player, agent, event_log, prompt_mode="heavy"):
-    """Build a prompt string for an AI agent given the current game state.
+def build_prompt_sections(controller, player, agent, event_log, prompt_mode="heavy"):
+    """Build structured prompt sections for an AI agent given the current game state.
+
+    Returns a dict with keys:
+        - "rules_summary": str — static rules text (cacheable, never changes)
+        - "private_thoughts": str — agent's accumulated private thoughts (grows only)
+        - "game_log": str — recent public game events (grows only)
+        - "decision_prompt": str — game state + decision + response format (changes each query)
 
     In heavy mode (default): uses full response format (with private_thought)
     for CHOOSE_ACTION, slim format for other states. Includes full rules
@@ -56,15 +62,53 @@ def build_prompt(controller, player, agent, event_log, prompt_mode="heavy"):
     use_full_format = is_turn and not is_light
     log_window = _LOG_WINDOW_LIGHT if is_light else _LOG_WINDOW_HEAVY
 
-    sections = [
-        RULES_SUMMARY_LIGHT if is_light else RULES_SUMMARY,
+    rules_summary = RULES_SUMMARY_LIGHT if is_light else RULES_SUMMARY
+
+    if is_light:
+        private_thoughts = ""
+    else:
+        private_thoughts = (
+            "YOUR PREVIOUS PRIVATE THOUGHTS:\n" + agent.get_thoughts_text()
+        )
+
+    game_log = _public_log_section(event_log, log_window=log_window)
+
+    decision_parts = [
         _game_state_section(controller, player),
-        _private_info_section(player, agent, include_thoughts=not is_light),
-        _public_log_section(event_log, log_window=log_window),
+        _private_info_section(player, agent, include_thoughts=False),
         _decision_section(controller, player),
         _response_format_full() if use_full_format else _response_format_slim(),
     ]
-    return "\n".join(sections)
+    decision_prompt = "\n".join(decision_parts)
+
+    return {
+        "rules_summary": rules_summary,
+        "private_thoughts": private_thoughts,
+        "game_log": game_log,
+        "decision_prompt": decision_prompt,
+    }
+
+
+def build_prompt(controller, player, agent, event_log, prompt_mode="heavy"):
+    """Build a flat prompt string for an AI agent given the current game state.
+
+    This is a convenience wrapper around build_prompt_sections() that returns
+    a single concatenated string. Used for backward compatibility.
+
+    Args:
+        controller: GameController instance
+        player: Player object for this agent
+        agent: Agent instance (for private thoughts)
+        event_log: list of {"type": "event"/"speech", ...} dicts
+        prompt_mode: "heavy" or "light"
+    """
+    sections = build_prompt_sections(controller, player, agent, event_log, prompt_mode)
+    parts = [sections["rules_summary"]]
+    if sections["private_thoughts"]:
+        parts.append(sections["private_thoughts"])
+    parts.append(sections["game_log"])
+    parts.append(sections["decision_prompt"])
+    return "\n".join(parts)
 
 
 def _game_state_section(controller, player):

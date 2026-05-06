@@ -6,7 +6,7 @@ import os
 STATS_FILE = os.path.join(os.path.dirname(__file__), "winrates.csv")
 FIELDNAMES = [
     "model", "prompt_mode", "games_played", "games_won", "win_rate",
-    "total_tokens", "total_queries", "avg_tokens_per_query",
+    "total_tokens", "cached_tokens", "total_queries", "avg_tokens_per_query",
 ]
 
 
@@ -32,6 +32,7 @@ def _load_stats():
                 "games_played": int(row["games_played"]),
                 "games_won": int(row["games_won"]),
                 "total_tokens": int(row.get("total_tokens", 0)),
+                "cached_tokens": int(row.get("cached_tokens", 0)),
                 "total_queries": int(row.get("total_queries", 0)),
             }
     return stats
@@ -49,6 +50,7 @@ def _save_stats(stats):
             rate = won / played if played > 0 else 0.0
             queries = data["total_queries"]
             tokens = data["total_tokens"]
+            cached = data["cached_tokens"]
             avg = tokens / queries if queries > 0 else 0.0
             writer.writerow({
                 "model": data["model"],
@@ -57,6 +59,7 @@ def _save_stats(stats):
                 "games_won": won,
                 "win_rate": f"{rate:.4f}",
                 "total_tokens": tokens,
+                "cached_tokens": cached,
                 "total_queries": queries,
                 "avg_tokens_per_query": f"{avg:.1f}",
             })
@@ -78,10 +81,11 @@ def record_game(agents, winner_model, prompt_mode="heavy"):
             stats[key] = {
                 "model": agent.model, "prompt_mode": prompt_mode,
                 "games_played": 0, "games_won": 0,
-                "total_tokens": 0, "total_queries": 0,
+                "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
             }
         stats[key]["games_played"] += 1
         stats[key]["total_tokens"] += agent.prompt_tokens + agent.completion_tokens
+        stats[key]["cached_tokens"] += agent.cached_tokens
         stats[key]["total_queries"] += agent.query_count
 
     winner_key = _make_key(winner_model, prompt_mode)
@@ -89,7 +93,7 @@ def record_game(agents, winner_model, prompt_mode="heavy"):
         stats[winner_key] = {
             "model": winner_model, "prompt_mode": prompt_mode,
             "games_played": 0, "games_won": 0,
-            "total_tokens": 0, "total_queries": 0,
+            "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
         }
     stats[winner_key]["games_won"] += 1
 
