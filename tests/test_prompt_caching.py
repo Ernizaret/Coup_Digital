@@ -1,4 +1,4 @@
-"""Tests for prompt caching — build_prompt_sections() and _build_cached_messages()."""
+"""Tests for prompt caching -- build_prompt_sections() and _build_cached_messages()."""
 
 import sys
 import unittest
@@ -8,26 +8,8 @@ from unittest.mock import MagicMock
 sys.modules.setdefault("openai", MagicMock())
 
 from AI_game.agents import _build_cached_messages, SYSTEM_PROMPT
-from AI_game.prompt_builder import (
-    build_prompt_sections,
-    build_prompt,
-    RULES_SUMMARY,
-    RULES_SUMMARY_LIGHT,
-)
+from AI_game.prompt_builder import build_prompt_sections
 from src.controller import GameController, State
-
-
-class FakeAgent:
-    """Minimal agent stub for prompt builder tests."""
-
-    def __init__(self, name="Alice", thoughts=None):
-        self.name = name
-        self.private_thoughts = thoughts or []
-
-    def get_thoughts_text(self):
-        if not self.private_thoughts:
-            return "None yet."
-        return "\n".join(f"- {t}" for t in self.private_thoughts)
 
 
 def _setup_game(num_players=2, names=None):
@@ -47,82 +29,49 @@ class TestBuildPromptSections(unittest.TestCase):
     def setUp(self):
         self.ctrl = _setup_game(2, ["Alice", "Bob"])
         self.player = self.ctrl.game.players[0]
-        self.agent = FakeAgent("Alice")
         self.event_log = []
 
     def test_returns_dict_with_required_keys(self):
         sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log
+            self.ctrl, self.player, self.event_log
         )
         self.assertIsInstance(sections, dict)
-        for key in ("rules_summary", "private_thoughts", "game_log", "decision_prompt"):
+        for key in ("identity", "game_log", "decision_prompt"):
             self.assertIn(key, sections)
 
-    def test_heavy_mode_uses_full_rules(self):
+    def test_identity_contains_player_name(self):
         sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log, prompt_mode="heavy"
+            self.ctrl, self.player, self.event_log
         )
-        self.assertEqual(sections["rules_summary"], RULES_SUMMARY)
+        self.assertIn("Alice", sections["identity"])
 
-    def test_light_mode_uses_light_rules(self):
+    def test_game_log_empty_with_no_events(self):
         sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log, prompt_mode="light"
+            self.ctrl, self.player, self.event_log
         )
-        self.assertEqual(sections["rules_summary"], RULES_SUMMARY_LIGHT)
-
-    def test_heavy_mode_includes_private_thoughts(self):
-        self.agent.private_thoughts = ["I should bluff Duke"]
-        sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log, prompt_mode="heavy"
-        )
-        self.assertIn("I should bluff Duke", sections["private_thoughts"])
-
-    def test_light_mode_omits_private_thoughts(self):
-        self.agent.private_thoughts = ["I should bluff Duke"]
-        sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log, prompt_mode="light"
-        )
-        self.assertEqual(sections["private_thoughts"], "")
-
-    def test_game_log_empty(self):
-        sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log
-        )
-        self.assertIn("Game just started", sections["game_log"])
+        self.assertEqual(sections["game_log"], "")
 
     def test_game_log_includes_events(self):
         self.event_log.append({"type": "event", "text": "Alice took Income"})
         sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log
+            self.ctrl, self.player, self.event_log
         )
         self.assertIn("Alice took Income", sections["game_log"])
 
     def test_decision_prompt_contains_decision(self):
         sections = build_prompt_sections(
-            self.ctrl, self.player, self.agent, self.event_log
+            self.ctrl, self.player, self.event_log
         )
-        self.assertIn("DECISION REQUIRED", sections["decision_prompt"])
-
-    def test_build_prompt_flat_contains_all_sections(self):
-        """build_prompt() returns a flat string containing all section content."""
-        self.agent.private_thoughts = ["thought1"]
-        self.event_log.append({"type": "event", "text": "test event"})
-        flat = build_prompt(
-            self.ctrl, self.player, self.agent, self.event_log, prompt_mode="heavy"
-        )
-        self.assertIn("COUP RULES", flat)
-        self.assertIn("thought1", flat)
-        self.assertIn("test event", flat)
-        self.assertIn("DECISION REQUIRED", flat)
+        self.assertIn("DECIDE", sections["decision_prompt"])
 
 
 class TestBuildCachedMessages(unittest.TestCase):
     """Test _build_cached_messages() produces correct message structure."""
 
-    def _make_sections(self, private_thoughts="", game_log="LOG", decision="DECIDE"):
+    def _make_sections(self, identity="IDENTITY", game_log="LOG",
+                       decision="DECIDE"):
         return {
-            "rules_summary": "RULES",
-            "private_thoughts": private_thoughts,
+            "identity": identity,
             "game_log": game_log,
             "decision_prompt": decision,
         }
@@ -138,48 +87,36 @@ class TestBuildCachedMessages(unittest.TestCase):
         system_content = messages[0]["content"]
         self.assertEqual(len(system_content), 2)
         self.assertEqual(system_content[0]["text"], SYSTEM_PROMPT)
-        self.assertEqual(system_content[1]["text"], "RULES")
+        self.assertEqual(system_content[1]["text"], "IDENTITY")
 
-    def test_rules_summary_has_cache_control(self):
+    def test_identity_has_cache_control(self):
         messages = _build_cached_messages(self._make_sections())
-        rules_block = messages[0]["content"][1]
-        self.assertIn("cache_control", rules_block)
-        self.assertEqual(rules_block["cache_control"], {"type": "ephemeral"})
+        identity_block = messages[0]["content"][1]
+        self.assertIn("cache_control", identity_block)
+        self.assertEqual(identity_block["cache_control"], {"type": "ephemeral"})
 
     def test_system_prompt_has_no_cache_control(self):
         messages = _build_cached_messages(self._make_sections())
         system_block = messages[0]["content"][0]
         self.assertNotIn("cache_control", system_block)
 
-    def test_user_message_without_thoughts_has_two_blocks(self):
-        """When private_thoughts is empty, user message has game_log + decision only."""
-        messages = _build_cached_messages(self._make_sections(private_thoughts=""))
+    def test_user_message_without_log_has_one_block(self):
+        """When game_log is empty, user message has decision only."""
+        messages = _build_cached_messages(self._make_sections(game_log=""))
+        user_content = messages[1]["content"]
+        self.assertEqual(len(user_content), 1)
+        self.assertEqual(user_content[0]["text"], "DECIDE")
+
+    def test_user_message_with_log_has_two_blocks(self):
+        """When game_log is non-empty, it becomes an additional block."""
+        messages = _build_cached_messages(self._make_sections(game_log="LOG"))
         user_content = messages[1]["content"]
         self.assertEqual(len(user_content), 2)
         self.assertEqual(user_content[0]["text"], "LOG")
         self.assertEqual(user_content[1]["text"], "DECIDE")
 
-    def test_user_message_with_thoughts_has_three_blocks(self):
-        """When private_thoughts is non-empty, it becomes an additional block."""
-        messages = _build_cached_messages(
-            self._make_sections(private_thoughts="THOUGHTS")
-        )
-        user_content = messages[1]["content"]
-        self.assertEqual(len(user_content), 3)
-        self.assertEqual(user_content[0]["text"], "THOUGHTS")
-        self.assertEqual(user_content[1]["text"], "LOG")
-        self.assertEqual(user_content[2]["text"], "DECIDE")
-
-    def test_thoughts_block_has_cache_control(self):
-        messages = _build_cached_messages(
-            self._make_sections(private_thoughts="THOUGHTS")
-        )
-        thoughts_block = messages[1]["content"][0]
-        self.assertEqual(thoughts_block["cache_control"], {"type": "ephemeral"})
-
     def test_game_log_block_has_cache_control(self):
         messages = _build_cached_messages(self._make_sections())
-        # Without thoughts, game_log is the first user block
         game_log_block = messages[1]["content"][0]
         self.assertEqual(game_log_block["cache_control"], {"type": "ephemeral"})
 
@@ -242,6 +179,37 @@ class TestAgentTrackUsage(unittest.TestCase):
         self.assertEqual(agent.prompt_tokens, 0)
         self.assertEqual(agent.completion_tokens, 0)
         self.assertEqual(agent.cached_tokens, 0)
+
+
+class TestAgentHistoryDepth(unittest.TestCase):
+    """Test Agent.history_depth attribute."""
+
+    def test_default_history_depth(self):
+        from unittest.mock import patch
+        from AI_game.agents import Agent
+
+        with patch("AI_game.agents.OpenAI"):
+            agent = Agent("test", "key", "model")
+
+        self.assertEqual(agent.history_depth, 2)
+
+    def test_custom_history_depth(self):
+        from unittest.mock import patch
+        from AI_game.agents import Agent
+
+        with patch("AI_game.agents.OpenAI"):
+            agent = Agent("test", "key", "model", history_depth=5)
+
+        self.assertEqual(agent.history_depth, 5)
+
+    def test_no_private_thoughts_attribute(self):
+        from unittest.mock import patch
+        from AI_game.agents import Agent
+
+        with patch("AI_game.agents.OpenAI"):
+            agent = Agent("test", "key", "model")
+
+        self.assertFalse(hasattr(agent, "private_thoughts"))
 
 
 if __name__ == "__main__":

@@ -60,23 +60,25 @@ class TestCreateAgentsFromNames(unittest.TestCase):
     @patch("AI_game.agent_factory.get_available_agents",
            return_value=["Claude", "Gemini"])
     def test_creates_agents_in_order(self, mock_avail, mock_create):
-        mock_create.side_effect = lambda name, key, model: MagicMock(
+        mock_create.side_effect = lambda name, key, model, **kw: MagicMock(
             name=name, model=model
         )
         agents = create_agents_from_names(["Claude", "Gemini"], self.config)
         self.assertEqual(len(agents), 2)
         mock_create.assert_any_call(
-            "Claude", "test-key", "anthropic/claude-3.5-sonnet"
+            "Claude", "test-key", "anthropic/claude-3.5-sonnet",
+            history_depth=2
         )
         mock_create.assert_any_call(
-            "Gemini", "test-key", "google/gemini-pro"
+            "Gemini", "test-key", "google/gemini-pro",
+            history_depth=2
         )
 
     @patch("AI_game.agent_factory.create_agent")
     @patch("AI_game.agent_factory.get_available_agents",
            return_value=["Claude", "Gemini"])
     def test_numbered_name_maps_to_provider(self, mock_avail, mock_create):
-        mock_create.side_effect = lambda name, key, model: MagicMock(
+        mock_create.side_effect = lambda name, key, model, **kw: MagicMock(
             name=name, model=model
         )
         agents = create_agents_from_names(

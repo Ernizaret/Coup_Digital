@@ -18,10 +18,7 @@ def parse_response(raw_text, valid_options):
     speech = str(data.get("speech", ""))
     raw_action = str(data.get("action", ""))
     action = _match_option(raw_action, valid_options)
-    result = {"speech": speech, "action": action}
-    if data.get("private_thought"):
-        result["private_thought"] = str(data["private_thought"])
-    return result
+    return {"speech": speech, "action": action}
 
 
 def _extract_json(text):

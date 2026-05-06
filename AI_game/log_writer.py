@@ -95,14 +95,7 @@ class LogWriter:
         # Append the accumulated game lines
         doc.extend(self._lines)
 
-        # Winner's private thoughts
-        if winner_agent is not None and winner_agent.private_thoughts:
-            doc.append("")
-            doc.append("---")
-            doc.append("")
-            doc.append(f"## Winner's Private Thoughts \u2014 {winner_name}")
-            for thought in winner_agent.private_thoughts:
-                doc.append(f"- {thought}")
+        # (Private thoughts feature removed)
 
         doc.append("")  # trailing newline
 

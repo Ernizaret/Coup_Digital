@@ -499,7 +499,7 @@ class AgentSetupWindow:
     # ----- Per-player custom rows -----
 
     def _rebuild_custom_rows(self):
-        """Destroy and recreate per-player card/coin rows."""
+        """Destroy and recreate per-player card/coin/history-depth rows."""
         # Save current values before destroying
         old_values = {}
         for row in self._player_rows:
@@ -508,6 +508,7 @@ class AgentSetupWindow:
                 "card1": row["card1_var"].get(),
                 "card2": row["card2_var"].get(),
                 "coins": row["coins_var"].get(),
+                "history_depth": row["history_depth_var"].get(),
             }
 
         # Destroy old widgets
@@ -528,6 +529,7 @@ class AgentSetupWindow:
             card1_var = tk.StringVar(value="Random")
             card2_var = tk.StringVar(value="Random")
             coins_var = tk.StringVar(value="2")
+            history_depth_var = tk.StringVar(value="2")
 
             # Restore previous values if this player existed before
             if name in old_values:
@@ -540,6 +542,12 @@ class AgentSetupWindow:
                     c = int(prev["coins"])
                     if 0 <= c <= 12:
                         coins_var.set(str(c))
+                except (ValueError, TypeError):
+                    pass
+                try:
+                    hd = int(prev["history_depth"])
+                    if hd >= 0:
+                        history_depth_var.set(str(hd))
                 except (ValueError, TypeError):
                     pass
 
@@ -561,12 +569,21 @@ class AgentSetupWindow:
             tk.Label(row_frame, text="coins",
                      font=("Helvetica", 10)).pack(side=tk.LEFT, padx=(2, 0))
 
+            history_depth_spin = tk.Spinbox(
+                row_frame, from_=0, to=99, width=3,
+                textvariable=history_depth_var, font=("Helvetica", 10))
+            history_depth_spin.pack(side=tk.LEFT, padx=(8, 0))
+
+            tk.Label(row_frame, text="history",
+                     font=("Helvetica", 10)).pack(side=tk.LEFT, padx=(2, 0))
+
             self._player_rows.append({
                 "name": name,
                 "frame": row_frame,
                 "card1_var": card1_var,
                 "card2_var": card2_var,
                 "coins_var": coins_var,
+                "history_depth_var": history_depth_var,
             })
 
         self._update_deck_indicator()
@@ -732,6 +749,17 @@ class AgentSetupWindow:
                 values.append(2)
         return values
 
+    def _get_history_depths(self):
+        """Return list of int history_depth values from custom rows."""
+        values = []
+        for row in self._player_rows:
+            try:
+                v = int(row["history_depth_var"].get())
+                values.append(max(0, v))
+            except (ValueError, TypeError):
+                values.append(2)
+        return values
+
     def _get_game_count(self):
         """Return the game count from the spinbox (clamped to 1-999)."""
         try:
@@ -757,6 +785,12 @@ class AgentSetupWindow:
         agent_names = self._get_agent_names()
         game_count = self._get_game_count()
         seed = self._get_seed()
+
+        # Collect history depths (uses custom section values or defaults)
+        if self._custom_expanded and self._player_rows:
+            history_depths = self._get_history_depths()
+        else:
+            history_depths = None  # use default (2) for all agents
 
         # Build preset from custom conditions (if any are non-default)
         preset_name = None
@@ -790,7 +824,8 @@ class AgentSetupWindow:
 
         if game_count == 1:
             # Single game
-            agents = create_agents_from_names(agent_names, self.config)
+            agents = create_agents_from_names(
+                agent_names, self.config, history_depths=history_depths)
             runner = GameRunner(agents, prompt_mode=self.prompt_mode,
                                 preset_name=preset_name, seed=seed)
             if inline_preset is not None:
@@ -800,7 +835,7 @@ class AgentSetupWindow:
             # Multi-game run
             self._run_multi_game(
                 agent_names, game_count, preset_name, inline_preset,
-                seed=seed)
+                seed=seed, history_depths=history_depths)
 
     def _apply_inline_preset(self, runner, inline_preset):
         """Monkey-patch a GameRunner so it applies an inline preset dict
@@ -829,7 +864,7 @@ class AgentSetupWindow:
         runner._apply_preset = patched_apply
 
     def _run_multi_game(self, agent_names, game_count, preset_name,
-                        inline_preset, seed=None):
+                        inline_preset, seed=None, history_depths=None):
         """Execute multiple games and print progress and summary."""
         results = []
         errors = []
@@ -852,7 +887,8 @@ class AgentSetupWindow:
 
         for game_num in range(1, game_count + 1):
             try:
-                agents = create_agents_from_names(agent_names, self.config)
+                agents = create_agents_from_names(
+                    agent_names, self.config, history_depths=history_depths)
 
                 # Compute per-game seed: if a base seed was given, increment it
                 game_seed = (seed + game_num - 1) if seed is not None else None

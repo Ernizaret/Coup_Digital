@@ -37,10 +37,9 @@ class _FakeController:
 class _FakeAgent:
     """Minimal stand-in for an Agent instance."""
 
-    def __init__(self, name, model, thoughts=None):
+    def __init__(self, name, model):
         self.name = name
         self.model = model
-        self.private_thoughts = thoughts or []
 
 
 class TestLogWriterAccumulation(unittest.TestCase):
@@ -104,7 +103,7 @@ class TestGameOverWritesFile(unittest.TestCase):
         lw.game_started(ctrl)
         agents = [
             _FakeAgent("Alice", "model-a"),
-            _FakeAgent("Bob", "model-b", thoughts=["I played well."]),
+            _FakeAgent("Bob", "model-b"),
         ]
         lw.set_agents(agents)
 
@@ -131,15 +130,15 @@ class TestGameOverWritesFile(unittest.TestCase):
             self.assertIn("Turn 1", content)
             self.assertIn('"Let\'s go!"', content)
             self.assertIn("[Event] Alice takes 1 coin.", content)
-            self.assertIn("Winner's Private Thoughts", content)
-            self.assertIn("I played well.", content)
+            # Private thoughts feature has been removed
+            self.assertNotIn("Private Thoughts", content)
 
-    def test_no_thoughts_section_when_none(self):
+    def test_no_thoughts_section(self):
         lw = LogWriter()
         ctrl = _FakeController(["Alice", "Bob"])
         lw.game_started(ctrl)
 
-        winner = _FakeAgent("Alice", "model-a", thoughts=[])
+        winner = _FakeAgent("Alice", "model-a")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("AI_game.log_writer.LOGS_DIR", tmpdir):

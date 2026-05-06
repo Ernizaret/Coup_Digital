@@ -15,21 +15,20 @@ def _build_cached_messages(prompt_sections):
     """Build messages with cache_control breakpoints for OpenRouter/Anthropic.
 
     Uses structured content blocks with explicit cache breakpoints placed on:
-      1. Rules summary (static, never changes within a game)
-      2. Private thoughts (progressively grows, only appends)
-      3. Game log (progressively grows, only appends)
+      1. Identity line (static within a game)
+      2. Game log (progressively grows, only appends)
 
     The decision prompt (game state, decision, response format) changes every
     query and is NOT cached.
 
     Args:
         prompt_sections: dict from build_prompt_sections() with keys
-            "rules_summary", "private_thoughts", "game_log", "decision_prompt"
+            "identity", "game_log", "decision_prompt"
 
     Returns:
         list of message dicts suitable for the chat completions API.
     """
-    # System message: SYSTEM_PROMPT + rules summary with cache breakpoint
+    # System message: SYSTEM_PROMPT + identity with cache breakpoint
     system_content = [
         {
             "type": "text",
@@ -37,26 +36,20 @@ def _build_cached_messages(prompt_sections):
         },
         {
             "type": "text",
-            "text": prompt_sections["rules_summary"],
+            "text": prompt_sections["identity"],
             "cache_control": {"type": "ephemeral"},
         },
     ]
 
-    # User message: private thoughts + game log (both cached) + decision (not cached)
+    # User message: game log (cached) + decision (not cached)
     user_content = []
 
-    if prompt_sections["private_thoughts"]:
+    if prompt_sections["game_log"]:
         user_content.append({
             "type": "text",
-            "text": prompt_sections["private_thoughts"],
+            "text": prompt_sections["game_log"],
             "cache_control": {"type": "ephemeral"},
         })
-
-    user_content.append({
-        "type": "text",
-        "text": prompt_sections["game_log"],
-        "cache_control": {"type": "ephemeral"},
-    })
 
     user_content.append({
         "type": "text",
@@ -72,11 +65,11 @@ def _build_cached_messages(prompt_sections):
 class Agent:
     """An AI agent that queries a model via OpenRouter."""
 
-    def __init__(self, name, api_key, model):
+    def __init__(self, name, api_key, model, history_depth=2):
         self.name = name
         self.api_key = api_key
         self.model = model
-        self.private_thoughts = []
+        self.history_depth = history_depth
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.cached_tokens = 0
@@ -125,7 +118,7 @@ class Agent:
 
         Args:
             prompt_sections: dict from build_prompt_sections() with keys
-                "rules_summary", "private_thoughts", "game_log", "decision_prompt"
+                "identity", "game_log", "decision_prompt"
 
         Returns:
             Raw response text from the model.
@@ -150,17 +143,7 @@ class Agent:
         self._track_usage(response.usage)
         return response.choices[0].message.content
 
-    def add_thought(self, thought):
-        """Store a private thought for future prompting. keep it short and concise."""
-        self.private_thoughts.append(thought)
 
-    def get_thoughts_text(self):
-        """Format accumulated private thoughts as a string."""
-        if not self.private_thoughts:
-            return "None yet."
-        return "\n".join(f"- {t}" for t in self.private_thoughts)
-
-
-def create_agent(name, api_key, model):
+def create_agent(name, api_key, model, history_depth=2):
     """Create an Agent instance."""
-    return Agent(name, api_key, model)
+    return Agent(name, api_key, model, history_depth=history_depth)
