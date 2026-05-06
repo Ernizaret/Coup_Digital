@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from AI_game.config import load_config, get_available_agents, get_prompt_mode
-from AI_game.agents import create_agent
+from AI_game.agent_factory import create_agents_from_names
 from AI_game.game_runner import GameRunner
 
 
@@ -145,18 +145,7 @@ class AgentSetupWindow:
     def _start_game(self):
         """Create Agent instances and launch the game runner."""
         agent_names = [self.listbox.get(i) for i in range(self.listbox.size())]
-
-        api_key = self.config["api_key"]
-        agents_cfg = self.config["agents"]
-        agents = []
-        for name in agent_names:
-            # Find the provider config — strip number suffix
-            for provider in self.available:
-                if name == provider or name.startswith(provider + " "):
-                    model = agents_cfg[provider]
-                    agent = create_agent(name, api_key, model)
-                    agents.append(agent)
-                    break
+        agents = create_agents_from_names(agent_names, self.config)
 
         self.root.destroy()
 
