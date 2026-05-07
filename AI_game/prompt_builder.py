@@ -144,5 +144,5 @@ def _response_format():
     """Response format instructions -- JSON with action and speech only."""
     return (
         '\nRESPOND IN JSON:\n'
-        '{"speech": "your public statement", "action": "your choice"}'
+        '{"speech": "your public statement to go with your action. please be concise and keep it short.", "action": "your choice"}'
     )
