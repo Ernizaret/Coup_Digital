@@ -1,1 +1,11 @@
 timestamp,seed,winner_model,history_depth,players
+2026-05-06 18:02:53,3646020919,anthropic/claude-opus-4.6-fast,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:04:09,3355313793,google/gemini-2.0-flash-001,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:04:50,3853938901,openai/gpt-4o,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:05:51,1195920276,google/gemini-2.0-flash-001,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:07:21,924496226,perplexity/sonar,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:08:49,2956206529,openai/gpt-4o,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:09:33,423303123,google/gemini-2.0-flash-001,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:10:52,1073418968,google/gemini-2.0-flash-001,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:12:02,2292571168,google/gemini-2.0-flash-001,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
+2026-05-06 18:13:33,3920055080,perplexity/sonar,1,"ChatGPT (openai/gpt-4o), Claude (anthropic/claude-opus-4.6-fast), Gemini (google/gemini-2.0-flash-001), Perplexity (perplexity/sonar)"
