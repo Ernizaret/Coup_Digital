@@ -6,6 +6,7 @@ Supports game count selection (1-999), collapsible custom start conditions
 
 import json
 import os
+import random
 import time
 import tkinter as tk
 from tkinter import messagebox
@@ -366,6 +367,16 @@ class AgentSetupWindow:
 
         tk.Label(seed_frame, text="(empty = random)",
                  font=("Helvetica", 9)).pack(side=tk.LEFT, padx=(5, 0))
+
+        # ---- Shuffle checkbox ----
+        shuffle_frame = tk.Frame(self._main_frame)
+        shuffle_frame.pack(fill=tk.X, padx=15, pady=(5, 5))
+
+        self._shuffle_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            shuffle_frame, text="Randomize turn order each game",
+            variable=self._shuffle_var, font=("Helvetica", 11),
+        ).pack(side=tk.LEFT)
 
         # ---- Collapsible custom start conditions ----
         self._custom_toggle_btn = tk.Button(
@@ -822,10 +833,14 @@ class AgentSetupWindow:
 
         self.root.destroy()
 
+        shuffle = self._shuffle_var.get()
+
         if game_count == 1:
             # Single game
             agents = create_agents_from_names(
                 agent_names, self.config, history_depths=history_depths)
+            if shuffle:
+                random.shuffle(agents)
             runner = GameRunner(agents, prompt_mode=self.prompt_mode,
                                 preset_name=preset_name, seed=seed)
             if inline_preset is not None:
@@ -835,7 +850,8 @@ class AgentSetupWindow:
             # Multi-game run
             self._run_multi_game(
                 agent_names, game_count, preset_name, inline_preset,
-                seed=seed, history_depths=history_depths)
+                seed=seed, history_depths=history_depths,
+                shuffle=shuffle)
 
     def _apply_inline_preset(self, runner, inline_preset):
         """Monkey-patch a GameRunner so it applies an inline preset dict
@@ -864,7 +880,8 @@ class AgentSetupWindow:
         runner._apply_preset = patched_apply
 
     def _run_multi_game(self, agent_names, game_count, preset_name,
-                        inline_preset, seed=None, history_depths=None):
+                        inline_preset, seed=None, history_depths=None,
+                        shuffle=False):
         """Execute multiple games and print progress and summary."""
         results = []
         errors = []
@@ -881,6 +898,7 @@ class AgentSetupWindow:
             print(f"  Preset:        {preset_name}")
         if seed is not None:
             print(f"  Starting seed: {seed}")
+        print(f"  Shuffle order: {'on' if shuffle else 'off'}")
         print()
 
         start_time = time.time()
@@ -889,6 +907,9 @@ class AgentSetupWindow:
             try:
                 agents = create_agents_from_names(
                     agent_names, self.config, history_depths=history_depths)
+
+                if shuffle:
+                    random.shuffle(agents)
 
                 # Compute per-game seed: if a base seed was given, increment it
                 game_seed = (seed + game_num - 1) if seed is not None else None
