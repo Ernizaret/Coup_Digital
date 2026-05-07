@@ -176,8 +176,7 @@ class GameRunner:
             if self.log_writer:
                 self.log_writer.game_over(winner.name,
                                           winner_agent=winner_agent)
-            record_game(self.agents, winner_agent.model, self.prompt_mode,
-                        seed=self.seed)
+            record_game(self.agents, winner_agent, seed=self.seed)
             return {
                 "winner_name": winner.name,
                 "winner_model": winner_agent.model,

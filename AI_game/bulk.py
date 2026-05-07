@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import random
 import sys
 import time
 
@@ -75,6 +76,10 @@ def _parse_args():
             "seed+1, seed+2, etc. If omitted, each game generates its own seed."
         ),
     )
+    parser.add_argument(
+        "--shuffle", action="store_true",
+        help="Randomize agent turn order before each game.",
+    )
     return parser.parse_args()
 
 
@@ -120,7 +125,7 @@ def _resolve_agent_names(agents_arg, config):
 
 
 def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
-              log=True, preset_name=None, seed=None):
+              log=True, preset_name=None, seed=None, shuffle=False):
     """Execute the bulk game loop.
 
     Returns:
@@ -140,6 +145,7 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
         print(f"  Preset:        {preset_name}")
     if seed is not None:
         print(f"  Starting seed: {seed}")
+    print(f"  Shuffle order: {'on' if shuffle else 'off'}")
     print(f"  Quiet mode:    {'on' if quiet else 'off'}")
     if delay > 0:
         print(f"  Delay:         {delay}s between games")
@@ -151,6 +157,9 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
         try:
             # Create fresh agents for each game
             agents = create_agents_from_names(agent_display_names, config)
+
+            if shuffle:
+                random.shuffle(agents)
 
             # Compute per-game seed: if a base seed was given, increment it
             game_seed = (seed + game_num - 1) if seed is not None else None
@@ -323,6 +332,7 @@ def main():
         log=not args.no_logs,
         preset_name=args.preset,
         seed=args.seed,
+        shuffle=args.shuffle,
     )
 
 

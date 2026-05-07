@@ -134,8 +134,12 @@ def _decision_section(controller, player):
     lines = ["DECIDE:", message]
 
     if options:
-        lines.append(f"Options: {options}")
-        lines.append("Pick one exactly as listed.")
+        numbered = " | ".join(options)
+        lines.append(f"Valid choices: [{numbered}]")
+        lines.append(
+            "You MUST pick exactly one of the above choices. "
+            "Put your chosen option in the \"action\" field verbatim."
+        )
 
     return "\n".join(lines)
 
@@ -144,5 +148,6 @@ def _response_format():
     """Response format instructions -- JSON with action and speech only."""
     return (
         '\nRESPOND IN JSON:\n'
-        '{"speech": "your public statement", "action": "your choice"}'
+        '{"speech": "your public statement to go with your action. please be concise and keep it short.", '
+        '"action": "one of the valid choices listed above, copied exactly"}'
     )
