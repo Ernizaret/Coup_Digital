@@ -96,16 +96,17 @@ class TestParseResponse(unittest.TestCase):
         self.assertEqual(result["speech"], "hello")
         self.assertEqual(result["action"], "Income")
 
-    def test_private_thought_included(self):
+    def test_private_thought_ignored(self):
+        """private_thought in response is silently ignored (not returned)."""
         raw = '{"speech": "hi", "action": "Tax", "private_thought": "they might block"}'
         result = parse_response(raw, ["Income", "Tax"])
         self.assertEqual(result["action"], "Tax")
-        self.assertEqual(result["private_thought"], "they might block")
+        self.assertNotIn("private_thought", result)
 
-    def test_private_thought_absent(self):
+    def test_only_speech_and_action_returned(self):
         raw = '{"speech": "hi", "action": "Tax"}'
         result = parse_response(raw, ["Income", "Tax"])
-        self.assertNotIn("private_thought", result)
+        self.assertEqual(set(result.keys()), {"speech", "action"})
 
     def test_case_insensitive_action(self):
         raw = '{"speech": "", "action": "tax"}'

@@ -8,7 +8,7 @@ from AI_game.config import load_config, get_available_agents, get_prompt_mode
 from AI_game.agents import create_agent
 
 
-def create_agents_from_names(agent_names, config):
+def create_agents_from_names(agent_names, config, history_depths=None):
     """Create a list of Agent instances from display names and config.
 
     Args:
@@ -16,6 +16,8 @@ def create_agents_from_names(agent_names, config):
             Number suffixes (e.g. "Claude 2") are stripped to find the provider key
             in the config.
         config: parsed ai_config.json dict with "api_key" and "agents" keys.
+        history_depths: optional list of int history_depth values, one per agent.
+            If None, all agents use the default (2).
 
     Returns:
         list of Agent instances in the same order as agent_names.
@@ -28,12 +30,17 @@ def create_agents_from_names(agent_names, config):
     available = get_available_agents(config)
     agents = []
 
-    for name in agent_names:
+    for i, name in enumerate(agent_names):
         matched = False
+        history_depth = (
+            history_depths[i] if history_depths and i < len(history_depths)
+            else 2
+        )
         for provider in available:
             if name == provider or name.startswith(provider + " "):
                 model = agents_cfg[provider]
-                agent = create_agent(name, api_key, model)
+                agent = create_agent(name, api_key, model,
+                                     history_depth=history_depth)
                 agents.append(agent)
                 matched = True
                 break

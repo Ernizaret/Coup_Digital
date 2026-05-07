@@ -20,7 +20,7 @@ class GameRunner:
 
         Args:
             agents: list of Agent instances (2-6 agents)
-            prompt_mode: "heavy" or "light" — controls prompt verbosity
+            prompt_mode: "heavy" or "light" -- kept for backward compat (unused now)
             quiet: if True, suppress play-by-play console output
             log: if True, write a markdown transcript to AI_game/logs/
             preset_name: optional preset name from presets.json to configure
@@ -101,7 +101,7 @@ class GameRunner:
         return {agent.name: agent for agent in self.agents}
 
     def _game_loop(self):
-        """Main game loop — query agents until game over."""
+        """Main game loop -- query agents until game over."""
         agent_map = self._build_agent_map()
         last_turn_player = None
 
@@ -114,6 +114,14 @@ class GameRunner:
             if (self.controller.state == State.CHOOSE_ACTION
                     and player != last_turn_player):
                 self._turn_number += 1
+                # Insert a turn boundary marker into event_log
+                self.event_log.append({
+                    "type": "event",
+                    "text": "",
+                    "turn_boundary": True,
+                    "turn_player": player.name,
+                    "turn_number": self._turn_number,
+                })
                 self.output.turn_start(player.name, self._turn_number)
                 if self.log_writer:
                     self.log_writer.turn_start(player.name, self._turn_number)
@@ -126,7 +134,7 @@ class GameRunner:
             message, options = self.controller.get_prompt(player)
 
             if options is None:
-                # Text entry state — shouldn't happen after setup
+                # Text entry state -- shouldn't happen after setup
                 break
 
             action, speech = self._query_agent(agent, player, options)
@@ -162,7 +170,7 @@ class GameRunner:
             winner = self.controller.game.get_living_players()[0]
             self.output.game_over(winner.name)
             self.output.token_usage(self.agents)
-            # Record stats — find the winning agent's model
+            # Record stats -- find the winning agent's model
             agent_map = self._build_agent_map()
             winner_agent = agent_map[winner.name]
             if self.log_writer:
@@ -184,8 +192,8 @@ class GameRunner:
         Returns (action, speech) tuple.
         """
         prompt_sections = build_prompt_sections(
-            self.controller, player, agent, self.event_log,
-            prompt_mode=self.prompt_mode,
+            self.controller, player, self.event_log,
+            history_depth=agent.history_depth,
         )
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -196,11 +204,6 @@ class GameRunner:
 
                 result = parse_response(raw, options)
 
-                # Store private thought if provided
-                private = result.get("private_thought", "")
-                if private:
-                    agent.add_thought(private)
-
                 return result["action"], result["speech"]
 
             except ParseError as e:
@@ -210,7 +213,7 @@ class GameRunner:
                 self.output.agent_done()
                 self.output.agent_error(agent.name, attempt, f"API error: {e}")
 
-        # All retries exhausted — fall back to first valid option
+        # All retries exhausted -- fall back to first valid option
         fallback = options[0]
         self.output.agent_fallback(agent.name, fallback)
         return fallback, ""
