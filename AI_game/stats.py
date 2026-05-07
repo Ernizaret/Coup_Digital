@@ -78,21 +78,23 @@ def _save_stats(stats):
             })
 
 
-def _append_game_log(agents, winner_model, history_depth, seed):
+def _append_game_log(agents, winner_agent, seed):
     """Append a single game entry to the per-game log CSV."""
     file_exists = os.path.exists(GAME_LOG_FILE)
+    winner_depth = getattr(winner_agent, "history_depth", 2)
     with open(GAME_LOG_FILE, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=GAME_LOG_FIELDNAMES)
         if not file_exists:
             writer.writeheader()
         players = ", ".join(
-            f"{getattr(a, 'name', '?')} ({a.model})" for a in agents
+            f"{getattr(a, 'name', '?')} ({a.model}, depth={getattr(a, 'history_depth', 2)})"
+            for a in agents
         )
         writer.writerow({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "seed": seed if seed is not None else "",
-            "winner_model": winner_model,
-            "history_depth": history_depth,
+            "winner_model": winner_agent.model,
+            "history_depth": winner_depth,
             "players": players,
         })
 
@@ -136,20 +138,19 @@ def _compute_elo_updates(agent_keys, stats, winner_key):
     return new_elos
 
 
-def record_game(agents, winner_model, history_depth=2, seed=None):
+def record_game(agents, winner_agent, seed=None):
     """Record a completed game for all participating agents.
 
     Args:
         agents: list of Agent instances that participated.
-        winner_model: the model string of the winning agent.
-        history_depth: fallback history depth (used if agent lacks the attribute).
+        winner_agent: the Agent instance that won the game.
         seed: the game seed (integer) for reproducibility tracking.
     """
     stats = _load_stats()
 
     agent_keys = []
     for agent in agents:
-        depth = getattr(agent, "history_depth", history_depth)
+        depth = getattr(agent, "history_depth", 2)
         key = _make_key(agent.model, depth)
         if key not in stats:
             stats[key] = {
@@ -163,15 +164,12 @@ def record_game(agents, winner_model, history_depth=2, seed=None):
         stats[key]["total_queries"] += agent.query_count
         agent_keys.append(key)
 
-    # Determine winner key using the winner agent's history_depth
-    winner_agent = next(
-        (a for a in agents if a.model == winner_model), None
-    )
-    winner_depth = getattr(winner_agent, "history_depth", history_depth)
-    winner_key = _make_key(winner_model, winner_depth)
+    # Determine winner key directly from the winner agent
+    winner_depth = getattr(winner_agent, "history_depth", 2)
+    winner_key = _make_key(winner_agent.model, winner_depth)
     if winner_key not in stats:
         stats[winner_key] = {
-            "model": winner_model, "history_depth": winner_depth,
+            "model": winner_agent.model, "history_depth": winner_depth,
             "games_played": 0, "games_won": 0, "elo": ELO_START,
             "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
         }
@@ -184,4 +182,4 @@ def record_game(agents, winner_model, history_depth=2, seed=None):
         stats[key]["elo"] = new_elo
 
     _save_stats(stats)
-    _append_game_log(agents, winner_model, winner_depth, seed)
+    _append_game_log(agents, winner_agent, seed)

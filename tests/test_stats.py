@@ -15,8 +15,10 @@ from AI_game.stats import (
 class FakeAgent:
     """Minimal agent stub for testing record_game."""
 
-    def __init__(self, model, prompt_tokens=0, completion_tokens=0,
-                 cached_tokens=0, query_count=0, history_depth=2):
+    def __init__(self, name="?", model="model", prompt_tokens=0,
+                 completion_tokens=0, cached_tokens=0, query_count=0,
+                 history_depth=2):
+        self.name = name
         self.model = model
         self.prompt_tokens = prompt_tokens
         self.completion_tokens = completion_tokens
@@ -113,14 +115,16 @@ class TestRecordGame(unittest.TestCase):
             os.remove(path)
             os.remove(log_path)
             agents = [
-                FakeAgent("model-a", prompt_tokens=100, completion_tokens=50,
-                          query_count=5, history_depth=3),
-                FakeAgent("model-b", prompt_tokens=200, completion_tokens=100,
-                          query_count=8, history_depth=3),
+                FakeAgent(model="model-a", prompt_tokens=100,
+                          completion_tokens=50, query_count=5,
+                          history_depth=3),
+                FakeAgent(model="model-b", prompt_tokens=200,
+                          completion_tokens=100, query_count=8,
+                          history_depth=3),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
-                record_game(agents, "model-a", history_depth=3)
+                record_game(agents, agents[0])
                 stats = _load_stats()
 
             self.assertEqual(stats["model-a|3"]["games_played"], 1)
@@ -145,14 +149,16 @@ class TestRecordGame(unittest.TestCase):
             os.remove(path)
             os.remove(log_path)
             agents = [
-                FakeAgent("model-a", prompt_tokens=10, completion_tokens=5,
-                          query_count=2, history_depth=5),
-                FakeAgent("model-b", prompt_tokens=20, completion_tokens=10,
-                          query_count=3, history_depth=5),
+                FakeAgent(model="model-a", prompt_tokens=10,
+                          completion_tokens=5, query_count=2,
+                          history_depth=5),
+                FakeAgent(model="model-b", prompt_tokens=20,
+                          completion_tokens=10, query_count=3,
+                          history_depth=5),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
-                record_game(agents, "model-a", history_depth=5)
+                record_game(agents, agents[0])
                 # Reset token counts for second game
                 agents[0].prompt_tokens = 10
                 agents[0].completion_tokens = 5
@@ -160,7 +166,7 @@ class TestRecordGame(unittest.TestCase):
                 agents[1].prompt_tokens = 20
                 agents[1].completion_tokens = 10
                 agents[1].query_count = 3
-                record_game(agents, "model-b", history_depth=5)
+                record_game(agents, agents[1])
                 stats = _load_stats()
 
             self.assertEqual(stats["model-a|5"]["games_played"], 2)
@@ -183,14 +189,16 @@ class TestRecordGame(unittest.TestCase):
             os.remove(path)
             os.remove(log_path)
             agents = [
-                FakeAgent("model-a", prompt_tokens=10, completion_tokens=5,
-                          query_count=2, history_depth=3),
-                FakeAgent("model-b", prompt_tokens=20, completion_tokens=10,
-                          query_count=3, history_depth=3),
+                FakeAgent(model="model-a", prompt_tokens=10,
+                          completion_tokens=5, query_count=2,
+                          history_depth=3),
+                FakeAgent(model="model-b", prompt_tokens=20,
+                          completion_tokens=10, query_count=3,
+                          history_depth=3),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
-                record_game(agents, "model-a", history_depth=3)
+                record_game(agents, agents[0])
                 # Reset token counts for second game with different depth
                 agents[0].prompt_tokens = 10
                 agents[0].completion_tokens = 5
@@ -200,7 +208,7 @@ class TestRecordGame(unittest.TestCase):
                 agents[1].completion_tokens = 10
                 agents[1].query_count = 3
                 agents[1].history_depth = 5
-                record_game(agents, "model-b", history_depth=5)
+                record_game(agents, agents[1])
                 stats = _load_stats()
 
             # Depth 3 row
@@ -209,6 +217,48 @@ class TestRecordGame(unittest.TestCase):
             # Depth 5 row (separate)
             self.assertEqual(stats["model-a|5"]["games_played"], 1)
             self.assertEqual(stats["model-a|5"]["games_won"], 0)
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+            if os.path.exists(log_path):
+                os.remove(log_path)
+
+
+    def test_same_model_different_depths(self):
+        """Four agents with same model but different depths: win goes to correct depth."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f2:
+            log_path = f2.name
+        try:
+            os.remove(path)
+            os.remove(log_path)
+            agents = [
+                FakeAgent(name="G1", model="gemini", history_depth=1),
+                FakeAgent(name="G2", model="gemini", history_depth=2),
+                FakeAgent(name="G3", model="gemini", history_depth=3),
+                FakeAgent(name="G4", model="gemini", history_depth=4),
+            ]
+            # Agent with depth=3 wins
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents, agents[2])
+                stats = _load_stats()
+
+            # Each depth should have 1 game played
+            for d in range(1, 5):
+                self.assertEqual(stats[f"gemini|{d}"]["games_played"], 1)
+
+            # Only depth=3 should have the win
+            self.assertEqual(stats["gemini|1"]["games_won"], 0)
+            self.assertEqual(stats["gemini|2"]["games_won"], 0)
+            self.assertEqual(stats["gemini|3"]["games_won"], 1)
+            self.assertEqual(stats["gemini|4"]["games_won"], 0)
+
+            # Winner Elo should be highest
+            self.assertGreater(
+                stats["gemini|3"]["elo"], stats["gemini|1"]["elo"]
+            )
         finally:
             if os.path.exists(path):
                 os.remove(path)
@@ -276,12 +326,12 @@ class TestEloRating(unittest.TestCase):
         path, log_path = self._make_temp_paths()
         try:
             agents = [
-                FakeAgent("model-a", history_depth=2),
-                FakeAgent("model-b", history_depth=2),
+                FakeAgent(model="model-a", history_depth=2),
+                FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
-                record_game(agents, "model-a")
+                record_game(agents, agents[0])
                 stats = _load_stats()
             # Both should have ELO near 1500 (winner slightly above, loser below)
             self.assertAlmostEqual(
@@ -295,12 +345,12 @@ class TestEloRating(unittest.TestCase):
         path, log_path = self._make_temp_paths()
         try:
             agents = [
-                FakeAgent("model-a", history_depth=2),
-                FakeAgent("model-b", history_depth=2),
+                FakeAgent(model="model-a", history_depth=2),
+                FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
-                record_game(agents, "model-a")
+                record_game(agents, agents[0])
                 stats = _load_stats()
             self.assertGreater(stats["model-a|2"]["elo"], ELO_START)
             self.assertLess(stats["model-b|2"]["elo"], ELO_START)
@@ -312,14 +362,14 @@ class TestEloRating(unittest.TestCase):
         path, log_path = self._make_temp_paths()
         try:
             agents = [
-                FakeAgent("model-a", history_depth=2),
-                FakeAgent("model-b", history_depth=2),
-                FakeAgent("model-c", history_depth=2),
-                FakeAgent("model-d", history_depth=2),
+                FakeAgent(model="model-a", history_depth=2),
+                FakeAgent(model="model-b", history_depth=2),
+                FakeAgent(model="model-c", history_depth=2),
+                FakeAgent(model="model-d", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
-                record_game(agents, "model-a")
+                record_game(agents, agents[0])
                 stats = _load_stats()
             # Winner gains
             self.assertGreater(stats["model-a|2"]["elo"], ELO_START)
@@ -337,12 +387,12 @@ class TestEloRating(unittest.TestCase):
         path, log_path = self._make_temp_paths()
         try:
             agents = [
-                FakeAgent("model-a", history_depth=2),
-                FakeAgent("model-b", history_depth=2),
+                FakeAgent(model="model-a", history_depth=2),
+                FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
-                record_game(agents, "model-a")
+                record_game(agents, agents[0])
                 stats1 = _load_stats()
                 elo_a_after_1 = stats1["model-a|2"]["elo"]
                 # Second game, model-a wins again
@@ -352,7 +402,7 @@ class TestEloRating(unittest.TestCase):
                 agents[1].prompt_tokens = 0
                 agents[1].completion_tokens = 0
                 agents[1].query_count = 0
-                record_game(agents, "model-a")
+                record_game(agents, agents[0])
                 stats2 = _load_stats()
             # ELO should have continued from previous value, not reset
             self.assertGreater(stats2["model-a|2"]["elo"], elo_a_after_1)
