@@ -1,5 +1,5 @@
-model,games_played,games_won,win_rate,total_tokens,total_queries,avg_tokens_per_query
-anthropic/claude-opus-4.6-fast,5,0,0.0000,38925,24,1621.9
-google/gemini-2.0-flash-001,6,0,0.0000,37036,31,1194.7
-openai/gpt-4o,6,2,0.3333,59572,47,1267.5
-perplexity/sonar,6,4,0.6667,52736,38,1387.8
+model,history_depth,games_played,games_won,win_rate,total_tokens,cached_tokens,total_queries,avg_tokens_per_query
+anthropic/claude-opus-4.6-fast,unknown,6,0,0.0000,98970,0,49,2019.8
+google/gemini-2.0-flash-001,unknown,7,0,0.0000,55035,0,45,1223.0
+openai/gpt-4o,unknown,7,3,0.4286,97432,0,70,1391.9
+perplexity/sonar,unknown,7,4,0.5714,79484,0,58,1370.4
