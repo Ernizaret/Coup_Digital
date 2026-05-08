@@ -67,11 +67,11 @@ class TestCreateAgentsFromNames(unittest.TestCase):
         self.assertEqual(len(agents), 2)
         mock_create.assert_any_call(
             "Claude", "test-key", "anthropic/claude-3.5-sonnet",
-            history_depth=2
+            history_depth=2, rules_summary=False, strategy_guide=False
         )
         mock_create.assert_any_call(
             "Gemini", "test-key", "google/gemini-pro",
-            history_depth=2
+            history_depth=2, rules_summary=False, strategy_guide=False
         )
 
     @patch("AI_game.agent_factory.create_agent")

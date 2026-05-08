@@ -16,14 +16,16 @@ def _build_cached_messages(prompt_sections):
 
     Uses structured content blocks with explicit cache breakpoints placed on:
       1. Identity line (static within a game)
-      2. Game log (progressively grows, only appends)
+      2. Rules summary (static, only present when enabled)
+      3. Game log (progressively grows, only appends)
 
     The decision prompt (game state, decision, response format) changes every
     query and is NOT cached.
 
     Args:
         prompt_sections: dict from build_prompt_sections() with keys
-            "identity", "game_log", "decision_prompt"
+            "identity", "rules_summary" (optional), "game_log",
+            "decision_prompt"
 
     Returns:
         list of message dicts suitable for the chat completions API.
@@ -40,6 +42,22 @@ def _build_cached_messages(prompt_sections):
             "cache_control": {"type": "ephemeral"},
         },
     ]
+
+    # If rules summary is present, add it as a cached block in the system message
+    if prompt_sections.get("rules_summary"):
+        system_content.append({
+            "type": "text",
+            "text": prompt_sections["rules_summary"],
+            "cache_control": {"type": "ephemeral"},
+        })
+
+    # If strategy guide is present, add it as a cached block in the system message
+    if prompt_sections.get("strategy_guide"):
+        system_content.append({
+            "type": "text",
+            "text": prompt_sections["strategy_guide"],
+            "cache_control": {"type": "ephemeral"},
+        })
 
     # User message: game log (cached) + decision (not cached)
     user_content = []
@@ -65,11 +83,14 @@ def _build_cached_messages(prompt_sections):
 class Agent:
     """An AI agent that queries a model via OpenRouter."""
 
-    def __init__(self, name, api_key, model, history_depth=2):
+    def __init__(self, name, api_key, model, history_depth=2,
+                 rules_summary=False, strategy_guide=False):
         self.name = name
         self.api_key = api_key
         self.model = model
         self.history_depth = history_depth
+        self.rules_summary = rules_summary
+        self.strategy_guide = strategy_guide
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.cached_tokens = 0
@@ -144,6 +165,9 @@ class Agent:
         return response.choices[0].message.content
 
 
-def create_agent(name, api_key, model, history_depth=2):
+def create_agent(name, api_key, model, history_depth=2, rules_summary=False,
+                 strategy_guide=False):
     """Create an Agent instance."""
-    return Agent(name, api_key, model, history_depth=history_depth)
+    return Agent(name, api_key, model, history_depth=history_depth,
+                 rules_summary=rules_summary,
+                 strategy_guide=strategy_guide)

@@ -46,11 +46,19 @@ class TestBuildPromptSections(unittest.TestCase):
         for key in ("identity", "game_log", "decision_prompt"):
             self.assertIn(key, sections)
 
-    def test_no_rules_summary_key(self):
+    def test_no_rules_summary_by_default(self):
         sections = build_prompt_sections(
             self.ctrl, self.player, self.event_log
         )
-        self.assertNotIn("rules_summary", sections)
+        # rules_summary key is present but should be empty when disabled
+        self.assertEqual(sections.get("rules_summary", ""), "")
+
+    def test_no_strategy_guide_by_default(self):
+        sections = build_prompt_sections(
+            self.ctrl, self.player, self.event_log
+        )
+        # strategy_guide key is present but should be empty when disabled
+        self.assertEqual(sections.get("strategy_guide", ""), "")
 
     def test_no_private_thoughts_key(self):
         sections = build_prompt_sections(

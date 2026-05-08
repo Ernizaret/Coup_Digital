@@ -37,8 +37,28 @@ def _parse_args():
             "seed is generated and displayed so the game can be replayed."
         ),
     )
+    parser.add_argument(
+        "--rules-summary",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable rules summary for all agents. When set, every agent "
+            "receives a rules reference section in its prompt."
+        ),
+    )
+    parser.add_argument(
+        "--strategy-guide",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable strategy guide for all agents. When set, every agent "
+            "receives a strategy guide section in its prompt."
+        ),
+    )
     return parser.parse_args()
 
 
 args = _parse_args()
-main(prompt_mode_override=args.mode, preset_name=args.preset, seed=args.seed)
+main(prompt_mode_override=args.mode, preset_name=args.preset, seed=args.seed,
+     rules_summary_all=args.rules_summary,
+     strategy_guide_all=args.strategy_guide)

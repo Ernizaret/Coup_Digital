@@ -80,6 +80,20 @@ def _parse_args():
         "--shuffle", action="store_true",
         help="Randomize agent turn order before each game.",
     )
+    parser.add_argument(
+        "--rules-summary", action="store_true", default=False,
+        help=(
+            "Enable rules summary for all agents. When set, every agent "
+            "receives a rules reference section in its prompt."
+        ),
+    )
+    parser.add_argument(
+        "--strategy-guide", action="store_true", default=False,
+        help=(
+            "Enable strategy guide for all agents. When set, every agent "
+            "receives a strategy guide section in its prompt."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -125,8 +139,15 @@ def _resolve_agent_names(agents_arg, config):
 
 
 def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
-              log=True, preset_name=None, seed=None, shuffle=False):
+              log=True, preset_name=None, seed=None, shuffle=False,
+              rules_summaries=None, strategy_guides=None):
     """Execute the bulk game loop.
+
+    Args:
+        rules_summaries: optional list of bool values, one per agent.
+            If None, all agents default to False (no rules summary).
+        strategy_guides: optional list of bool values, one per agent.
+            If None, all agents default to False (no strategy guide).
 
     Returns:
         tuple of (results, errors) where results is a list of result dicts
@@ -156,7 +177,10 @@ def _run_bulk(num_games, agent_display_names, config, prompt_mode, quiet, delay,
     for game_num in range(1, num_games + 1):
         try:
             # Create fresh agents for each game
-            agents = create_agents_from_names(agent_display_names, config)
+            agents = create_agents_from_names(
+                agent_display_names, config,
+                rules_summaries=rules_summaries,
+                strategy_guides=strategy_guides)
 
             if shuffle:
                 random.shuffle(agents)
@@ -321,6 +345,16 @@ def main():
     # Resolve agent list
     agent_display_names = _resolve_agent_names(args.agents, config)
 
+    # Build rules_summaries list if --rules-summary flag is set
+    rules_summaries = None
+    if args.rules_summary:
+        rules_summaries = [True] * len(agent_display_names)
+
+    # Build strategy_guides list if --strategy-guide flag is set
+    strategy_guides = None
+    if args.strategy_guide:
+        strategy_guides = [True] * len(agent_display_names)
+
     # Run the bulk loop
     _run_bulk(
         num_games=args.games,
@@ -333,6 +367,8 @@ def main():
         preset_name=args.preset,
         seed=args.seed,
         shuffle=args.shuffle,
+        rules_summaries=rules_summaries,
+        strategy_guides=strategy_guides,
     )
 
 
