@@ -193,6 +193,8 @@ class GameRunner:
         prompt_sections = build_prompt_sections(
             self.controller, player, self.event_log,
             history_depth=agent.history_depth,
+            rules_summary=agent.rules_summary,
+            strategy_guide=agent.strategy_guide,
         )
 
         for attempt in range(1, MAX_RETRIES + 1):

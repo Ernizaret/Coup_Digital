@@ -249,12 +249,14 @@ class AgentSetupWindow:
     """Setup window for selecting AI agents and configuring turn order."""
 
     def __init__(self, root, prompt_mode_override=None, preset_name=None,
-                 seed=None):
+                 seed=None, rules_summary_all=False, strategy_guide_all=False):
         self.root = root
         self.root.title("Coup \u2014 AI Agent Setup")
         self.root.minsize(520, 500)
         self.preset_name = preset_name
         self._cli_seed = seed  # seed from CLI argument (None = auto-generate)
+        self._cli_rules_summary_all = rules_summary_all  # from CLI --rules-summary
+        self._cli_strategy_guide_all = strategy_guide_all  # from CLI --strategy-guide
 
         # Load config
         try:
@@ -510,7 +512,7 @@ class AgentSetupWindow:
     # ----- Per-player custom rows -----
 
     def _rebuild_custom_rows(self):
-        """Destroy and recreate per-player card/coin/history-depth rows."""
+        """Destroy and recreate per-player card/coin/history-depth/rules/strategy rows."""
         # Save current values before destroying
         old_values = {}
         for row in self._player_rows:
@@ -520,6 +522,8 @@ class AgentSetupWindow:
                 "card2": row["card2_var"].get(),
                 "coins": row["coins_var"].get(),
                 "history_depth": row["history_depth_var"].get(),
+                "rules_summary": row["rules_summary_var"].get(),
+                "strategy_guide": row["strategy_guide_var"].get(),
             }
 
         # Destroy old widgets
@@ -541,6 +545,10 @@ class AgentSetupWindow:
             card2_var = tk.StringVar(value="Random")
             coins_var = tk.StringVar(value="2")
             history_depth_var = tk.StringVar(value="2")
+            rules_summary_var = tk.BooleanVar(
+                value=self._cli_rules_summary_all)
+            strategy_guide_var = tk.BooleanVar(
+                value=self._cli_strategy_guide_all)
 
             # Restore previous values if this player existed before
             if name in old_values:
@@ -561,6 +569,8 @@ class AgentSetupWindow:
                         history_depth_var.set(str(hd))
                 except (ValueError, TypeError):
                     pass
+                rules_summary_var.set(prev.get("rules_summary", False))
+                strategy_guide_var.set(prev.get("strategy_guide", False))
 
             card1_menu = tk.OptionMenu(row_frame, card1_var, *CARD_OPTIONS,
                                        command=lambda *a: self._update_deck_indicator())
@@ -588,6 +598,16 @@ class AgentSetupWindow:
             tk.Label(row_frame, text="history",
                      font=("Helvetica", 10)).pack(side=tk.LEFT, padx=(2, 0))
 
+            rules_cb = tk.Checkbutton(
+                row_frame, text="rules",
+                variable=rules_summary_var, font=("Helvetica", 10))
+            rules_cb.pack(side=tk.LEFT, padx=(8, 0))
+
+            strategy_cb = tk.Checkbutton(
+                row_frame, text="strategy",
+                variable=strategy_guide_var, font=("Helvetica", 10))
+            strategy_cb.pack(side=tk.LEFT, padx=(8, 0))
+
             self._player_rows.append({
                 "name": name,
                 "frame": row_frame,
@@ -595,6 +615,8 @@ class AgentSetupWindow:
                 "card2_var": card2_var,
                 "coins_var": coins_var,
                 "history_depth_var": history_depth_var,
+                "rules_summary_var": rules_summary_var,
+                "strategy_guide_var": strategy_guide_var,
             })
 
         self._update_deck_indicator()
@@ -771,6 +793,14 @@ class AgentSetupWindow:
                 values.append(2)
         return values
 
+    def _get_rules_summaries(self):
+        """Return list of bool rules_summary values from custom rows."""
+        return [row["rules_summary_var"].get() for row in self._player_rows]
+
+    def _get_strategy_guides(self):
+        """Return list of bool strategy_guide values from custom rows."""
+        return [row["strategy_guide_var"].get() for row in self._player_rows]
+
     def _get_game_count(self):
         """Return the game count from the spinbox (clamped to 1-999)."""
         try:
@@ -797,11 +827,24 @@ class AgentSetupWindow:
         game_count = self._get_game_count()
         seed = self._get_seed()
 
-        # Collect history depths (uses custom section values or defaults)
+        # Collect history depths, rules summaries, and strategy guides
+        # (custom section or defaults)
         if self._custom_expanded and self._player_rows:
             history_depths = self._get_history_depths()
+            rules_summaries = self._get_rules_summaries()
+            strategy_guides = self._get_strategy_guides()
         else:
             history_depths = None  # use default (2) for all agents
+            # If CLI --rules-summary was set, enable for all agents even
+            # without the custom section being expanded.
+            if self._cli_rules_summary_all:
+                rules_summaries = [True] * len(agent_names)
+            else:
+                rules_summaries = None  # use default (False) for all agents
+            if self._cli_strategy_guide_all:
+                strategy_guides = [True] * len(agent_names)
+            else:
+                strategy_guides = None  # use default (False) for all agents
 
         # Build preset from custom conditions (if any are non-default)
         preset_name = None
@@ -838,7 +881,9 @@ class AgentSetupWindow:
         if game_count == 1:
             # Single game
             agents = create_agents_from_names(
-                agent_names, self.config, history_depths=history_depths)
+                agent_names, self.config, history_depths=history_depths,
+                rules_summaries=rules_summaries,
+                strategy_guides=strategy_guides)
             if shuffle:
                 random.shuffle(agents)
             runner = GameRunner(agents, prompt_mode=self.prompt_mode,
@@ -851,6 +896,8 @@ class AgentSetupWindow:
             self._run_multi_game(
                 agent_names, game_count, preset_name, inline_preset,
                 seed=seed, history_depths=history_depths,
+                rules_summaries=rules_summaries,
+                strategy_guides=strategy_guides,
                 shuffle=shuffle)
 
     def _apply_inline_preset(self, runner, inline_preset):
@@ -881,6 +928,7 @@ class AgentSetupWindow:
 
     def _run_multi_game(self, agent_names, game_count, preset_name,
                         inline_preset, seed=None, history_depths=None,
+                        rules_summaries=None, strategy_guides=None,
                         shuffle=False):
         """Execute multiple games and print progress and summary."""
         results = []
@@ -906,7 +954,9 @@ class AgentSetupWindow:
         for game_num in range(1, game_count + 1):
             try:
                 agents = create_agents_from_names(
-                    agent_names, self.config, history_depths=history_depths)
+                    agent_names, self.config, history_depths=history_depths,
+                    rules_summaries=rules_summaries,
+                    strategy_guides=strategy_guides)
 
                 if shuffle:
                     random.shuffle(agents)
@@ -1049,10 +1099,13 @@ class AgentSetupWindow:
         print()
 
 
-def main(prompt_mode_override=None, preset_name=None, seed=None):
+def main(prompt_mode_override=None, preset_name=None, seed=None,
+         rules_summary_all=False, strategy_guide_all=False):
     root = tk.Tk()
     AgentSetupWindow(root, prompt_mode_override=prompt_mode_override,
-                     preset_name=preset_name, seed=seed)
+                     preset_name=preset_name, seed=seed,
+                     rules_summary_all=rules_summary_all,
+                     strategy_guide_all=strategy_guide_all)
     root.mainloop()
 
 

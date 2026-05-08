@@ -8,7 +8,8 @@ from AI_game.config import load_config, get_available_agents, get_prompt_mode
 from AI_game.agents import create_agent
 
 
-def create_agents_from_names(agent_names, config, history_depths=None):
+def create_agents_from_names(agent_names, config, history_depths=None,
+                             rules_summaries=None, strategy_guides=None):
     """Create a list of Agent instances from display names and config.
 
     Args:
@@ -18,6 +19,12 @@ def create_agents_from_names(agent_names, config, history_depths=None):
         config: parsed ai_config.json dict with "api_key" and "agents" keys.
         history_depths: optional list of int history_depth values, one per agent.
             If None, all agents use the default (2).
+        rules_summaries: optional list of bool values, one per agent, controlling
+            whether the agent receives a rules summary in its prompt.
+            If None, all agents default to False (no rules summary).
+        strategy_guides: optional list of bool values, one per agent, controlling
+            whether the agent receives a strategy guide in its prompt.
+            If None, all agents default to False (no strategy guide).
 
     Returns:
         list of Agent instances in the same order as agent_names.
@@ -36,11 +43,23 @@ def create_agents_from_names(agent_names, config, history_depths=None):
             history_depths[i] if history_depths and i < len(history_depths)
             else 2
         )
+        rules_summary = (
+            rules_summaries[i]
+            if rules_summaries and i < len(rules_summaries)
+            else False
+        )
+        strategy_guide = (
+            strategy_guides[i]
+            if strategy_guides and i < len(strategy_guides)
+            else False
+        )
         for provider in available:
             if name == provider or name.startswith(provider + " "):
                 model = agents_cfg[provider]
                 agent = create_agent(name, api_key, model,
-                                     history_depth=history_depth)
+                                     history_depth=history_depth,
+                                     rules_summary=rules_summary,
+                                     strategy_guide=strategy_guide)
                 agents.append(agent)
                 matched = True
                 break
