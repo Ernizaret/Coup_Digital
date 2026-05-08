@@ -95,6 +95,10 @@ class Agent:
         self.completion_tokens = 0
         self.cached_tokens = 0
         self.query_count = 0
+        self.bluffs = 0
+        self.bluffs_caught = 0
+        self.challenges_issued = 0
+        self.challenges_correct = 0
         self._client = OpenAI(
             api_key=api_key,
             base_url=OPENROUTER_BASE_URL,
