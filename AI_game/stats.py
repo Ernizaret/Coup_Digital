@@ -11,6 +11,7 @@ FIELDNAMES = [
     "total_tokens", "cached_tokens", "total_queries", "avg_tokens_per_query",
     "bluffs", "bluffs_caught", "bluff_success_rate",
     "challenges_issued", "challenges_correct", "challenge_success_rate",
+    "card_guesses_total", "card_guesses_correct", "card_guess_accuracy",
 ]
 
 ELO_START = 1500.0
@@ -52,6 +53,8 @@ def _load_stats():
                 "bluffs_caught": int(row.get("bluffs_caught") or 0),
                 "challenges_issued": int(row.get("challenges_issued") or 0),
                 "challenges_correct": int(row.get("challenges_correct") or 0),
+                "card_guesses_total": int(row.get("card_guesses_total") or 0),
+                "card_guesses_correct": int(row.get("card_guesses_correct") or 0),
             }
     return stats
 
@@ -77,6 +80,10 @@ def _save_stats(stats):
             ch_issued = data.get("challenges_issued", 0)
             ch_correct = data.get("challenges_correct", 0)
             ch_rate = ch_correct / ch_issued if ch_issued > 0 else 0.0
+            cg_total = data.get("card_guesses_total", 0)
+            cg_correct = data.get("card_guesses_correct", 0)
+            cg_accuracy = (cg_correct / cg_total
+                           if cg_total > 0 else 0.0)
             writer.writerow({
                 "model": data["model"],
                 "history_depth": data["history_depth"],
@@ -94,6 +101,9 @@ def _save_stats(stats):
                 "challenges_issued": ch_issued,
                 "challenges_correct": ch_correct,
                 "challenge_success_rate": f"{ch_rate:.4f}",
+                "card_guesses_total": cg_total,
+                "card_guesses_correct": cg_correct,
+                "card_guess_accuracy": f"{cg_accuracy:.4f}",
             })
 
 
@@ -178,6 +188,7 @@ def record_game(agents, winner_agent, seed=None):
                 "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
                 "bluffs": 0, "bluffs_caught": 0,
                 "challenges_issued": 0, "challenges_correct": 0,
+                "card_guesses_total": 0, "card_guesses_correct": 0,
             }
         stats[key]["games_played"] += 1
         stats[key]["total_tokens"] += agent.prompt_tokens + agent.completion_tokens
@@ -187,6 +198,8 @@ def record_game(agents, winner_agent, seed=None):
         stats[key]["bluffs_caught"] += getattr(agent, "bluffs_caught", 0)
         stats[key]["challenges_issued"] += getattr(agent, "challenges_issued", 0)
         stats[key]["challenges_correct"] += getattr(agent, "challenges_correct", 0)
+        stats[key]["card_guesses_total"] += getattr(agent, "card_guesses_total", 0)
+        stats[key]["card_guesses_correct"] += getattr(agent, "card_guesses_correct", 0)
         agent_keys.append(key)
 
     # Determine winner key directly from the winner agent
@@ -199,6 +212,7 @@ def record_game(agents, winner_agent, seed=None):
             "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
             "bluffs": 0, "bluffs_caught": 0,
             "challenges_issued": 0, "challenges_correct": 0,
+            "card_guesses_total": 0, "card_guesses_correct": 0,
         }
     stats[winner_key]["games_won"] += 1
 
