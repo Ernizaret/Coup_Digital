@@ -380,6 +380,22 @@ class AgentSetupWindow:
             variable=self._shuffle_var, font=("Helvetica", 11),
         ).pack(side=tk.LEFT)
 
+        # ---- Survey interval ----
+        survey_frame = tk.Frame(self._main_frame)
+        survey_frame.pack(fill=tk.X, padx=15, pady=(5, 5))
+
+        tk.Label(survey_frame, text="Survey interval:",
+                 font=("Helvetica", 11)).pack(side=tk.LEFT)
+
+        self._survey_interval_var = tk.StringVar(value="2")
+        tk.Spinbox(
+            survey_frame, from_=0, to=99, width=5,
+            textvariable=self._survey_interval_var,
+            font=("Helvetica", 11)).pack(side=tk.LEFT, padx=(8, 0))
+
+        tk.Label(survey_frame, text="(0 = disabled, N = every N rounds)",
+                 font=("Helvetica", 9)).pack(side=tk.LEFT, padx=(5, 0))
+
         # ---- Collapsible custom start conditions ----
         self._custom_toggle_btn = tk.Button(
             self._main_frame,
@@ -819,6 +835,14 @@ class AgentSetupWindow:
         except (ValueError, TypeError):
             return None
 
+    def _get_survey_interval(self):
+        """Return the survey interval from the spinbox (clamped to 0-99)."""
+        try:
+            n = int(self._survey_interval_var.get())
+            return max(0, min(99, n))
+        except (ValueError, TypeError):
+            return 2
+
     # ----- Start game -----
 
     def _start_game(self):
@@ -826,6 +850,7 @@ class AgentSetupWindow:
         agent_names = self._get_agent_names()
         game_count = self._get_game_count()
         seed = self._get_seed()
+        survey_interval = self._get_survey_interval()
 
         # Collect history depths, rules summaries, and strategy guides
         # (custom section or defaults)
@@ -887,7 +912,8 @@ class AgentSetupWindow:
             if shuffle:
                 random.shuffle(agents)
             runner = GameRunner(agents, prompt_mode=self.prompt_mode,
-                                preset_name=preset_name, seed=seed)
+                                preset_name=preset_name, seed=seed,
+                                survey_interval=survey_interval)
             if inline_preset is not None:
                 self._apply_inline_preset(runner, inline_preset)
             runner.run()
@@ -898,7 +924,8 @@ class AgentSetupWindow:
                 seed=seed, history_depths=history_depths,
                 rules_summaries=rules_summaries,
                 strategy_guides=strategy_guides,
-                shuffle=shuffle)
+                shuffle=shuffle,
+                survey_interval=survey_interval)
 
     def _apply_inline_preset(self, runner, inline_preset):
         """Monkey-patch a GameRunner so it applies an inline preset dict
@@ -929,7 +956,7 @@ class AgentSetupWindow:
     def _run_multi_game(self, agent_names, game_count, preset_name,
                         inline_preset, seed=None, history_depths=None,
                         rules_summaries=None, strategy_guides=None,
-                        shuffle=False):
+                        shuffle=False, survey_interval=None):
         """Execute multiple games and print progress and summary."""
         results = []
         errors = []
@@ -947,6 +974,11 @@ class AgentSetupWindow:
         if seed is not None:
             print(f"  Starting seed: {seed}")
         print(f"  Shuffle order: {'on' if shuffle else 'off'}")
+        if survey_interval is not None:
+            if survey_interval == 0:
+                print(f"  Survey:        disabled")
+            else:
+                print(f"  Survey:        every {survey_interval} round(s)")
         print()
 
         start_time = time.time()
@@ -967,7 +999,8 @@ class AgentSetupWindow:
                 runner = GameRunner(
                     agents, prompt_mode=self.prompt_mode,
                     quiet=(game_count > 5),
-                    preset_name=preset_name, seed=game_seed)
+                    preset_name=preset_name, seed=game_seed,
+                    survey_interval=survey_interval)
 
                 if inline_preset is not None:
                     self._apply_inline_preset(runner, inline_preset)

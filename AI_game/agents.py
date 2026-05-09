@@ -99,6 +99,8 @@ class Agent:
         self.bluffs_caught = 0
         self.challenges_issued = 0
         self.challenges_correct = 0
+        self.card_guesses_total = 0
+        self.card_guesses_correct = 0
         self._client = OpenAI(
             api_key=api_key,
             base_url=OPENROUTER_BASE_URL,
@@ -152,6 +154,40 @@ class Agent:
 
         # extra_body passes provider routing to OpenRouter; the openai client
         # forwards unknown kwargs as additional JSON fields in the request body.
+        response = self._client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.7,
+            max_tokens=512,
+            extra_body={
+                "provider": {
+                    "order": ["Anthropic"],
+                    "allow_fallbacks": True,
+                },
+            },
+        )
+        self.query_count += 1
+        self._track_usage(response.usage)
+        return response.choices[0].message.content
+
+
+    def query_survey(self, prompt_sections):
+        """Send a card-guess survey prompt and return the raw response.
+
+        Uses the same structured message format and prompt caching as
+        query_structured(). Token usage is accumulated into the agent's
+        existing token counters.
+
+        Args:
+            prompt_sections: dict from build_survey_prompt_sections() with
+                keys "identity", "rules_summary", "strategy_guide",
+                "game_log", "decision_prompt"
+
+        Returns:
+            Raw response text from the model.
+        """
+        messages = _build_cached_messages(prompt_sections)
+
         response = self._client.chat.completions.create(
             model=self.model,
             messages=messages,

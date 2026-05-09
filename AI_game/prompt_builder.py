@@ -223,3 +223,77 @@ def _response_format():
         '{"speech": "your public statement to go with your action. please be concise and keep it short.", '
         '"action": "one of the valid choices listed above, copied exactly"}'
     )
+
+
+VALID_CARD_TYPES = ["Duke", "Assassin", "Captain", "Ambassador", "Contessa"]
+
+
+def build_survey_prompt_sections(controller, player, event_log,
+                                  history_depth=2, rules_summary=False,
+                                  strategy_guide=False):
+    """Build structured prompt sections for a card-guess survey.
+
+    Returns a dict with the same keys as build_prompt_sections():
+        - "identity": str
+        - "rules_summary": str (empty when disabled)
+        - "strategy_guide": str (empty when disabled)
+        - "game_log": str
+        - "decision_prompt": str -- game state + survey question + response format
+
+    The decision_prompt replaces the normal DECIDE section with a SURVEY section
+    asking the player to guess hidden cards of each remaining opponent.
+    """
+    identity = _identity_section(controller, player)
+    rules = RULES_SUMMARY if rules_summary else ""
+    strategy = STRATEGY_GUIDE if strategy_guide else ""
+    game_log = _turn_history_section(event_log, player, history_depth)
+
+    survey_parts = [
+        _game_state_section(controller, player),
+        _survey_section(controller, player),
+        _survey_response_format(),
+    ]
+    decision_prompt = "\n".join(survey_parts)
+
+    return {
+        "identity": identity,
+        "rules_summary": rules,
+        "strategy_guide": strategy,
+        "game_log": game_log,
+        "decision_prompt": decision_prompt,
+    }
+
+
+def _survey_section(controller, player):
+    """Build the SURVEY section listing each opponent's hidden card count."""
+    game = controller.game
+    lines = [
+        "SURVEY: Guess the hidden cards of each remaining player.",
+    ]
+
+    for p in game.players:
+        if p == player or not p.is_alive():
+            continue
+        hidden_count = len(p.influence)
+        if hidden_count == 1:
+            lines.append(f"- {p.name} (1 hidden card): guess 1 card")
+        else:
+            lines.append(
+                f"- {p.name} ({hidden_count} hidden cards): "
+                f"guess {hidden_count} cards"
+            )
+
+    card_list = " | ".join(VALID_CARD_TYPES)
+    lines.append(f"\nValid card types: [{card_list}]")
+
+    return "\n".join(lines)
+
+
+def _survey_response_format():
+    """Response format for the card-guess survey -- JSON with guesses dict."""
+    return (
+        '\nRESPOND IN JSON:\n'
+        '{"guesses": {"PlayerName": ["Card1", "Card2"], ...}}\n'
+        'Provide your best guess for each opponent\'s hidden cards. '
+        'Use exact card names from the valid card types list.'
+    )
