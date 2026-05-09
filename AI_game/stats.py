@@ -7,7 +7,8 @@ from datetime import datetime
 STATS_FILE = os.path.join(os.path.dirname(__file__), "winrates.csv")
 GAME_LOG_FILE = os.path.join(os.path.dirname(__file__), "game_log.csv")
 FIELDNAMES = [
-    "model", "history_depth", "games_played", "games_won", "win_rate", "elo",
+    "model", "history_depth", "rules", "strategy",
+    "games_played", "games_won", "win_rate", "elo",
     "total_tokens", "cached_tokens", "total_queries", "avg_tokens_per_query",
     "bluffs", "bluffs_caught", "bluff_success_rate",
     "challenges_issued", "challenges_correct", "challenge_success_rate",
@@ -17,17 +18,20 @@ FIELDNAMES = [
 ELO_START = 1500.0
 ELO_K = 32
 GAME_LOG_FIELDNAMES = [
-    "timestamp", "seed", "winner_model", "history_depth", "players",
+    "timestamp", "seed", "winner_model", "history_depth",
+    "rules_summary", "strategy_guide", "players",
 ]
 
 
-def _make_key(model, history_depth):
-    """Create a composite key from model and history_depth."""
-    return f"{model}|{history_depth}"
+def _make_key(model, history_depth, rules_summary=False, strategy_guide=False):
+    """Create a composite key from model, history_depth, rules, and strategy."""
+    rules = "Yes" if rules_summary else "No"
+    strategy = "Yes" if strategy_guide else "No"
+    return f"{model}|{history_depth}|{rules}|{strategy}"
 
 
 def _load_stats():
-    """Load existing stats from CSV into a dict keyed by model|history_depth."""
+    """Load existing stats from CSV into a dict keyed by model|depth|rules|strategy."""
     stats = {}
     if not os.path.exists(STATS_FILE):
         return stats
@@ -39,10 +43,16 @@ def _load_stats():
                 depth = row["history_depth"]
             else:
                 depth = "unknown"
-            key = _make_key(row["model"], depth)
+            rules = row.get("rules", "No")
+            strategy = row.get("strategy", "No")
+            rules_bool = rules == "Yes"
+            strategy_bool = strategy == "Yes"
+            key = _make_key(row["model"], depth, rules_bool, strategy_bool)
             stats[key] = {
                 "model": row["model"],
                 "history_depth": depth,
+                "rules": rules,
+                "strategy": strategy,
                 "games_played": int(row["games_played"]),
                 "games_won": int(row["games_won"]),
                 "elo": float(row["elo"]) if row.get("elo") else ELO_START,
@@ -87,6 +97,8 @@ def _save_stats(stats):
             writer.writerow({
                 "model": data["model"],
                 "history_depth": data["history_depth"],
+                "rules": data.get("rules", "No"),
+                "strategy": data.get("strategy", "No"),
                 "games_played": played,
                 "games_won": won,
                 "win_rate": f"{rate:.4f}",
@@ -111,6 +123,8 @@ def _append_game_log(agents, winner_agent, seed):
     """Append a single game entry to the per-game log CSV."""
     file_exists = os.path.exists(GAME_LOG_FILE)
     winner_depth = getattr(winner_agent, "history_depth", 2)
+    winner_rules = getattr(winner_agent, "rules_summary", False)
+    winner_strategy = getattr(winner_agent, "strategy_guide", False)
     with open(GAME_LOG_FILE, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=GAME_LOG_FIELDNAMES)
         if not file_exists:
@@ -124,6 +138,8 @@ def _append_game_log(agents, winner_agent, seed):
             "seed": seed if seed is not None else "",
             "winner_model": winner_agent.model,
             "history_depth": winner_depth,
+            "rules_summary": "Yes" if winner_rules else "No",
+            "strategy_guide": "Yes" if winner_strategy else "No",
             "players": players,
         })
 
@@ -180,10 +196,15 @@ def record_game(agents, winner_agent, seed=None):
     agent_keys = []
     for agent in agents:
         depth = getattr(agent, "history_depth", 2)
-        key = _make_key(agent.model, depth)
+        rules = getattr(agent, "rules_summary", False)
+        strategy = getattr(agent, "strategy_guide", False)
+        key = _make_key(agent.model, depth, rules, strategy)
         if key not in stats:
+            rules_str = "Yes" if rules else "No"
+            strategy_str = "Yes" if strategy else "No"
             stats[key] = {
                 "model": agent.model, "history_depth": depth,
+                "rules": rules_str, "strategy": strategy_str,
                 "games_played": 0, "games_won": 0, "elo": ELO_START,
                 "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
                 "bluffs": 0, "bluffs_caught": 0,
@@ -204,10 +225,16 @@ def record_game(agents, winner_agent, seed=None):
 
     # Determine winner key directly from the winner agent
     winner_depth = getattr(winner_agent, "history_depth", 2)
-    winner_key = _make_key(winner_agent.model, winner_depth)
+    winner_rules = getattr(winner_agent, "rules_summary", False)
+    winner_strategy = getattr(winner_agent, "strategy_guide", False)
+    winner_key = _make_key(winner_agent.model, winner_depth,
+                           winner_rules, winner_strategy)
     if winner_key not in stats:
+        rules_str = "Yes" if winner_rules else "No"
+        strategy_str = "Yes" if winner_strategy else "No"
         stats[winner_key] = {
             "model": winner_agent.model, "history_depth": winner_depth,
+            "rules": rules_str, "strategy": strategy_str,
             "games_played": 0, "games_won": 0, "elo": ELO_START,
             "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
             "bluffs": 0, "bluffs_caught": 0,

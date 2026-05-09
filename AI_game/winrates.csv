@@ -1,5 +1,5 @@
-model,depth,,50
-gemini,1,5,0.1
-gemini,2,6,0.12
-gemini,3,20,0.4
-gemini,4,19,0.38
+model,history_depth,rules,strategy,games_played,games_won,win_rate,elo,total_tokens,cached_tokens,total_queries,avg_tokens_per_query,bluffs,bluffs_caught,bluff_success_rate,challenges_issued,challenges_correct,challenge_success_rate,card_guesses_total,card_guesses_correct,card_guess_accuracy
+google/gemini-2.0-flash-001,2,No,No,1,0,0.0000,1494.7,2604,0,6,434.0,1,0,1.0000,1,0,0.0000,0,0,0.0000
+google/gemini-2.0-flash-001,2,No,Yes,1,1,1.0000,1516.0,8699,2117,8,1087.4,2,1,0.5000,1,1,1.0000,3,2,0.6667
+google/gemini-2.0-flash-001,2,Yes,No,1,0,0.0000,1494.7,7898,0,9,877.6,0,0,0.0000,4,2,0.5000,3,1,0.3333
+google/gemini-2.0-flash-001,2,Yes,Yes,1,0,0.0000,1494.7,10223,8857,7,1460.4,1,1,0.0000,0,0,0.0000,2,1,0.5000
