@@ -17,7 +17,8 @@ class FakeAgent:
 
     def __init__(self, name="?", model="model", prompt_tokens=0,
                  completion_tokens=0, cached_tokens=0, query_count=0,
-                 history_depth=2):
+                 history_depth=2, bluffs=0, bluffs_caught=0,
+                 challenges_issued=0, challenges_correct=0):
         self.name = name
         self.model = model
         self.prompt_tokens = prompt_tokens
@@ -25,6 +26,10 @@ class FakeAgent:
         self.cached_tokens = cached_tokens
         self.query_count = query_count
         self.history_depth = history_depth
+        self.bluffs = bluffs
+        self.bluffs_caught = bluffs_caught
+        self.challenges_issued = challenges_issued
+        self.challenges_correct = challenges_correct
 
 
 class TestMakeKey(unittest.TestCase):
@@ -434,6 +439,231 @@ class TestEloRating(unittest.TestCase):
             self.assertAlmostEqual(stats["old-model|2"]["elo"], ELO_START)
         finally:
             self._cleanup(path, log_path)
+
+    def test_legacy_rows_without_bluff_columns_default_to_zero(self):
+        """CSV rows without bluff/challenge columns should default to 0."""
+        path, log_path = self._make_temp_paths()
+        try:
+            # Write a CSV without the bluff/challenge columns
+            legacy_fields = [
+                "model", "history_depth", "games_played", "games_won",
+                "win_rate", "elo", "total_tokens", "cached_tokens",
+                "total_queries", "avg_tokens_per_query",
+            ]
+            with open(path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=legacy_fields)
+                writer.writeheader()
+                writer.writerow({
+                    "model": "old-model", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "win_rate": "0.4000", "elo": "1500.0",
+                    "total_tokens": 1000, "cached_tokens": 0,
+                    "total_queries": 10, "avg_tokens_per_query": "100.0",
+                })
+            with patch("AI_game.stats.STATS_FILE", path):
+                stats = _load_stats()
+            self.assertEqual(stats["old-model|2"]["bluffs"], 0)
+            self.assertEqual(stats["old-model|2"]["bluffs_caught"], 0)
+            self.assertEqual(stats["old-model|2"]["challenges_issued"], 0)
+            self.assertEqual(stats["old-model|2"]["challenges_correct"], 0)
+        finally:
+            self._cleanup(path, log_path)
+
+
+class TestBluffChallengeStats(unittest.TestCase):
+    """Tests for bluff and challenge statistics in stats CSV."""
+
+    def _make_temp_paths(self):
+        f1 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f2 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        path, log_path = f1.name, f2.name
+        f1.close()
+        f2.close()
+        os.remove(path)
+        os.remove(log_path)
+        return path, log_path
+
+    def _cleanup(self, *paths):
+        for p in paths:
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_bluff_success_rate_calculated_on_save(self):
+        """bluff_success_rate = (bluffs - bluffs_caught) / bluffs."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 10, "bluffs_caught": 3,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            # (10 - 3) / 10 = 0.7
+            self.assertEqual(row["bluff_success_rate"], "0.7000")
+        finally:
+            os.remove(path)
+
+    def test_bluff_success_rate_zero_when_no_bluffs(self):
+        """bluff_success_rate should be 0.0 when bluffs == 0."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            self.assertEqual(row["bluff_success_rate"], "0.0000")
+        finally:
+            os.remove(path)
+
+    def test_challenge_success_rate_calculated_on_save(self):
+        """challenge_success_rate = challenges_correct / challenges_issued."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 8, "challenges_correct": 5,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            # 5 / 8 = 0.625
+            self.assertEqual(row["challenge_success_rate"], "0.6250")
+        finally:
+            os.remove(path)
+
+    def test_challenge_success_rate_zero_when_none_issued(self):
+        """challenge_success_rate should be 0.0 when challenges_issued == 0."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            self.assertEqual(row["challenge_success_rate"], "0.0000")
+        finally:
+            os.remove(path)
+
+    def test_bluff_stats_round_trip(self):
+        """Bluff/challenge counters survive save then load."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 12, "bluffs_caught": 4,
+                    "challenges_issued": 7, "challenges_correct": 3,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+                loaded = _load_stats()
+            self.assertEqual(loaded["model-a|2"]["bluffs"], 12)
+            self.assertEqual(loaded["model-a|2"]["bluffs_caught"], 4)
+            self.assertEqual(loaded["model-a|2"]["challenges_issued"], 7)
+            self.assertEqual(loaded["model-a|2"]["challenges_correct"], 3)
+        finally:
+            os.remove(path)
+
+    def test_record_game_accumulates_bluff_stats(self):
+        """record_game should accumulate bluff/challenge counters across games."""
+        path, log_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="model-a", history_depth=2,
+                          bluffs=3, bluffs_caught=1,
+                          challenges_issued=2, challenges_correct=1),
+                FakeAgent(model="model-b", history_depth=2,
+                          bluffs=1, bluffs_caught=0,
+                          challenges_issued=4, challenges_correct=2),
+            ]
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents, agents[0])
+
+                # Simulate second game with new per-game counts
+                agents[0].prompt_tokens = 0
+                agents[0].completion_tokens = 0
+                agents[0].query_count = 0
+                agents[0].bluffs = 2
+                agents[0].bluffs_caught = 2
+                agents[0].challenges_issued = 1
+                agents[0].challenges_correct = 0
+
+                agents[1].prompt_tokens = 0
+                agents[1].completion_tokens = 0
+                agents[1].query_count = 0
+                agents[1].bluffs = 0
+                agents[1].bluffs_caught = 0
+                agents[1].challenges_issued = 3
+                agents[1].challenges_correct = 1
+
+                record_game(agents, agents[1])
+                stats = _load_stats()
+
+            # model-a: 3+2=5 bluffs, 1+2=3 caught, 2+1=3 issued, 1+0=1 correct
+            self.assertEqual(stats["model-a|2"]["bluffs"], 5)
+            self.assertEqual(stats["model-a|2"]["bluffs_caught"], 3)
+            self.assertEqual(stats["model-a|2"]["challenges_issued"], 3)
+            self.assertEqual(stats["model-a|2"]["challenges_correct"], 1)
+
+            # model-b: 1+0=1 bluffs, 0+0=0 caught, 4+3=7 issued, 2+1=3 correct
+            self.assertEqual(stats["model-b|2"]["bluffs"], 1)
+            self.assertEqual(stats["model-b|2"]["bluffs_caught"], 0)
+            self.assertEqual(stats["model-b|2"]["challenges_issued"], 7)
+            self.assertEqual(stats["model-b|2"]["challenges_correct"], 3)
+        finally:
+            self._cleanup(path, log_path)
+
+    def test_new_columns_in_fieldnames(self):
+        """Verify all 6 new columns are in FIELDNAMES."""
+        self.assertIn("bluffs", FIELDNAMES)
+        self.assertIn("bluffs_caught", FIELDNAMES)
+        self.assertIn("bluff_success_rate", FIELDNAMES)
+        self.assertIn("challenges_issued", FIELDNAMES)
+        self.assertIn("challenges_correct", FIELDNAMES)
+        self.assertIn("challenge_success_rate", FIELDNAMES)
 
 
 if __name__ == "__main__":

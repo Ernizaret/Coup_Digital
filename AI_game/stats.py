@@ -9,6 +9,8 @@ GAME_LOG_FILE = os.path.join(os.path.dirname(__file__), "game_log.csv")
 FIELDNAMES = [
     "model", "history_depth", "games_played", "games_won", "win_rate", "elo",
     "total_tokens", "cached_tokens", "total_queries", "avg_tokens_per_query",
+    "bluffs", "bluffs_caught", "bluff_success_rate",
+    "challenges_issued", "challenges_correct", "challenge_success_rate",
 ]
 
 ELO_START = 1500.0
@@ -46,6 +48,10 @@ def _load_stats():
                 "total_tokens": int(row.get("total_tokens", 0)),
                 "cached_tokens": int(row.get("cached_tokens", 0)),
                 "total_queries": int(row.get("total_queries", 0)),
+                "bluffs": int(row.get("bluffs") or 0),
+                "bluffs_caught": int(row.get("bluffs_caught") or 0),
+                "challenges_issued": int(row.get("challenges_issued") or 0),
+                "challenges_correct": int(row.get("challenges_correct") or 0),
             }
     return stats
 
@@ -64,6 +70,13 @@ def _save_stats(stats):
             tokens = data["total_tokens"]
             cached = data["cached_tokens"]
             avg = tokens / queries if queries > 0 else 0.0
+            bluffs = data.get("bluffs", 0)
+            bluffs_caught = data.get("bluffs_caught", 0)
+            bluff_rate = ((bluffs - bluffs_caught) / bluffs
+                          if bluffs > 0 else 0.0)
+            ch_issued = data.get("challenges_issued", 0)
+            ch_correct = data.get("challenges_correct", 0)
+            ch_rate = ch_correct / ch_issued if ch_issued > 0 else 0.0
             writer.writerow({
                 "model": data["model"],
                 "history_depth": data["history_depth"],
@@ -75,6 +88,12 @@ def _save_stats(stats):
                 "cached_tokens": cached,
                 "total_queries": queries,
                 "avg_tokens_per_query": f"{avg:.1f}",
+                "bluffs": bluffs,
+                "bluffs_caught": bluffs_caught,
+                "bluff_success_rate": f"{bluff_rate:.4f}",
+                "challenges_issued": ch_issued,
+                "challenges_correct": ch_correct,
+                "challenge_success_rate": f"{ch_rate:.4f}",
             })
 
 
@@ -157,11 +176,17 @@ def record_game(agents, winner_agent, seed=None):
                 "model": agent.model, "history_depth": depth,
                 "games_played": 0, "games_won": 0, "elo": ELO_START,
                 "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                "bluffs": 0, "bluffs_caught": 0,
+                "challenges_issued": 0, "challenges_correct": 0,
             }
         stats[key]["games_played"] += 1
         stats[key]["total_tokens"] += agent.prompt_tokens + agent.completion_tokens
         stats[key]["cached_tokens"] += agent.cached_tokens
         stats[key]["total_queries"] += agent.query_count
+        stats[key]["bluffs"] += getattr(agent, "bluffs", 0)
+        stats[key]["bluffs_caught"] += getattr(agent, "bluffs_caught", 0)
+        stats[key]["challenges_issued"] += getattr(agent, "challenges_issued", 0)
+        stats[key]["challenges_correct"] += getattr(agent, "challenges_correct", 0)
         agent_keys.append(key)
 
     # Determine winner key directly from the winner agent
@@ -172,6 +197,8 @@ def record_game(agents, winner_agent, seed=None):
             "model": winner_agent.model, "history_depth": winner_depth,
             "games_played": 0, "games_won": 0, "elo": ELO_START,
             "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+            "bluffs": 0, "bluffs_caught": 0,
+            "challenges_issued": 0, "challenges_correct": 0,
         }
     stats[winner_key]["games_won"] += 1
 

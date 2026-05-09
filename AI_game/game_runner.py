@@ -70,6 +70,13 @@ class GameRunner:
 
         self._consume_log()
 
+        # Reset per-game bluff/challenge counters
+        for agent in self.agents:
+            agent.bluffs = 0
+            agent.bluffs_caught = 0
+            agent.challenges_issued = 0
+            agent.challenges_correct = 0
+
     def _apply_preset(self):
         """Override game state with a preset's custom starting conditions.
 
@@ -100,9 +107,90 @@ class GameRunner:
         """Map player names to Agent instances."""
         return {agent.name: agent for agent in self.agents}
 
+    def _build_player_agent_map(self):
+        """Map Player objects to Agent instances."""
+        agent_by_name = self._build_agent_map()
+        return {
+            p: agent_by_name[p.name]
+            for p in self.controller.game.players
+            if p.name in agent_by_name
+        }
+
+    def _track_bluff_challenge_events(self, state_before, action, player,
+                                       agent, log_cursor_before,
+                                       player_agents):
+        """Detect and record bluff/challenge events after a handle_input call.
+
+        Inspects controller state and new log entries to determine:
+        - Action bluffs (claiming a card not held)
+        - Block bluffs (blocking with a card not held)
+        - Challenges issued (responding "Yes" to a challenge query)
+        - Challenge outcomes (successful challenges update bluffs_caught
+          and challenges_correct)
+        """
+        ctrl = self.controller
+
+        # --- Action bluff detection ---
+        # When a player chose an action with a claimed card they don't hold
+        if state_before == State.CHOOSE_ACTION and ctrl.pending_claimed_card:
+            acting = ctrl.current_player
+            if not acting.has_influence(ctrl.pending_claimed_card):
+                acting_agent = player_agents.get(acting)
+                if acting_agent:
+                    acting_agent.bluffs += 1
+
+        # --- Block bluff detection ---
+        # When a player just declared a block (state moved to CHALLENGE_BLOCK_QUERY
+        # or block stands immediately), check if blocker has the claimed card
+        if (state_before == State.BLOCK_QUERY
+                and action != "Don't block"
+                and ctrl.blocker is not None
+                and ctrl.block_claimed_card is not None):
+            blocker = ctrl.blocker
+            if not blocker.has_influence(ctrl.block_claimed_card):
+                blocker_agent = player_agents.get(blocker)
+                if blocker_agent:
+                    blocker_agent.bluffs += 1
+
+        # --- Challenge issued detection ---
+        if (state_before in (State.CHALLENGE_QUERY,
+                             State.CHALLENGE_BLOCK_QUERY)
+                and action == "Yes"):
+            agent.challenges_issued += 1
+
+        # --- Challenge outcome detection (from new log entries) ---
+        new_logs = ctrl.log[log_cursor_before:]
+        for entry in new_logs:
+            # Successful action challenge:
+            # "<challenger> challenges -- <actor> does NOT have <card>! Challenge succeeds!"
+            if "Challenge succeeds!" in entry:
+                # The acting player was bluffing and got caught
+                acting_agent = player_agents.get(ctrl.current_player)
+                if acting_agent:
+                    acting_agent.bluffs_caught += 1
+                # The challenger was correct -- find who challenged
+                if (state_before in (State.CHALLENGE_QUERY,
+                                     State.CHALLENGE_BLOCK_QUERY)
+                        and action == "Yes"):
+                    agent.challenges_correct += 1
+
+            # Successful block challenge:
+            # "<challenger> challenges the block -- <blocker> does NOT have <card>! Block fails!"
+            if "Block fails!" in entry:
+                # The blocker was bluffing and got caught
+                blocker = ctrl.blocker
+                blocker_agent = player_agents.get(blocker) if blocker else None
+                if blocker_agent:
+                    blocker_agent.bluffs_caught += 1
+                # The challenger was correct
+                if (state_before == State.CHALLENGE_BLOCK_QUERY
+                        and action == "Yes"):
+                    agent.challenges_correct += 1
+
     def _game_loop(self):
         """Main game loop -- query agents until game over."""
         agent_map = self._build_agent_map()
+        player_agents = self._build_player_agent_map()
         last_turn_player = None
 
         while self.controller.state != State.GAME_OVER:
@@ -156,8 +244,19 @@ class GameRunner:
                     self.log_writer.agent_response(
                         player.name, "(silent)", action)
 
+            # Capture state before handle_input for bluff/challenge tracking
+            state_before = self.controller.state
+            log_cursor_before = len(self.controller.log)
+
             # Execute the action
             self.controller.handle_input(action, player)
+
+            # Track bluff and challenge events
+            self._track_bluff_challenge_events(
+                state_before, action, player, agent,
+                log_cursor_before, player_agents,
+            )
+
             self._consume_log()
 
             # Print game state after each full turn
