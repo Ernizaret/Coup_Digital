@@ -568,7 +568,7 @@ class TestCardGuessStatsCSV(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
@@ -593,7 +593,7 @@ class TestCardGuessStatsCSV(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
@@ -617,7 +617,7 @@ class TestCardGuessStatsCSV(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
@@ -629,8 +629,8 @@ class TestCardGuessStatsCSV(unittest.TestCase):
             with patch("AI_game.stats.STATS_FILE", path):
                 _save_stats(stats)
                 loaded = _load_stats()
-            self.assertEqual(loaded["model-a|2"]["card_guesses_total"], 30)
-            self.assertEqual(loaded["model-a|2"]["card_guesses_correct"], 18)
+            self.assertEqual(loaded["model-a|2|No|No"]["card_guesses_total"], 30)
+            self.assertEqual(loaded["model-a|2|No|No"]["card_guesses_correct"], 18)
         finally:
             os.remove(path)
 
@@ -667,12 +667,12 @@ class TestCardGuessStatsCSV(unittest.TestCase):
                 stats = _load_stats()
 
             # model-a: 10+8=18 total, 7+6=13 correct
-            self.assertEqual(stats["model-a|2"]["card_guesses_total"], 18)
-            self.assertEqual(stats["model-a|2"]["card_guesses_correct"], 13)
+            self.assertEqual(stats["model-a|2|No|No"]["card_guesses_total"], 18)
+            self.assertEqual(stats["model-a|2|No|No"]["card_guesses_correct"], 13)
 
             # model-b: 10+8=18 total, 5+3=8 correct
-            self.assertEqual(stats["model-b|2"]["card_guesses_total"], 18)
-            self.assertEqual(stats["model-b|2"]["card_guesses_correct"], 8)
+            self.assertEqual(stats["model-b|2|No|No"]["card_guesses_total"], 18)
+            self.assertEqual(stats["model-b|2|No|No"]["card_guesses_correct"], 8)
         finally:
             self._cleanup(path, log_path)
 
@@ -704,8 +704,8 @@ class TestCardGuessStatsCSV(unittest.TestCase):
                 })
             with patch("AI_game.stats.STATS_FILE", path):
                 stats = _load_stats()
-            self.assertEqual(stats["old-model|2"]["card_guesses_total"], 0)
-            self.assertEqual(stats["old-model|2"]["card_guesses_correct"], 0)
+            self.assertEqual(stats["old-model|2|No|No"]["card_guesses_total"], 0)
+            self.assertEqual(stats["old-model|2|No|No"]["card_guesses_correct"], 0)
         finally:
             self._cleanup(path, log_path)
 

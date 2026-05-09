@@ -18,7 +18,8 @@ class FakeAgent:
     def __init__(self, name="?", model="model", prompt_tokens=0,
                  completion_tokens=0, cached_tokens=0, query_count=0,
                  history_depth=2, bluffs=0, bluffs_caught=0,
-                 challenges_issued=0, challenges_correct=0):
+                 challenges_issued=0, challenges_correct=0,
+                 rules_summary=False, strategy_guide=False):
         self.name = name
         self.model = model
         self.prompt_tokens = prompt_tokens
@@ -30,16 +31,48 @@ class FakeAgent:
         self.bluffs_caught = bluffs_caught
         self.challenges_issued = challenges_issued
         self.challenges_correct = challenges_correct
+        self.rules_summary = rules_summary
+        self.strategy_guide = strategy_guide
 
 
 class TestMakeKey(unittest.TestCase):
-    def test_combines_model_and_depth(self):
-        self.assertEqual(_make_key("gpt-4", 3), "gpt-4|3")
+    def test_combines_model_depth_rules_strategy(self):
+        self.assertEqual(_make_key("gpt-4", 3), "gpt-4|3|No|No")
 
     def test_different_depths_differ(self):
         self.assertNotEqual(
             _make_key("gpt-4", 3),
             _make_key("gpt-4", 5),
+        )
+
+    def test_rules_summary_in_key(self):
+        self.assertEqual(
+            _make_key("gpt-4", 3, rules_summary=True),
+            "gpt-4|3|Yes|No",
+        )
+
+    def test_strategy_guide_in_key(self):
+        self.assertEqual(
+            _make_key("gpt-4", 3, strategy_guide=True),
+            "gpt-4|3|No|Yes",
+        )
+
+    def test_both_rules_and_strategy_in_key(self):
+        self.assertEqual(
+            _make_key("gpt-4", 3, rules_summary=True, strategy_guide=True),
+            "gpt-4|3|Yes|Yes",
+        )
+
+    def test_different_rules_differ(self):
+        self.assertNotEqual(
+            _make_key("gpt-4", 3, rules_summary=False),
+            _make_key("gpt-4", 3, rules_summary=True),
+        )
+
+    def test_different_strategy_differ(self):
+        self.assertNotEqual(
+            _make_key("gpt-4", 3, strategy_guide=False),
+            _make_key("gpt-4", 3, strategy_guide=True),
         )
 
 
@@ -63,9 +96,11 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|3": {
+                "model-a|3|No|No": {
                     "model": "model-a",
                     "history_depth": 3,
+                    "rules": "No",
+                    "strategy": "No",
                     "games_played": 10,
                     "games_won": 4,
                     "total_tokens": 5000,
@@ -76,10 +111,10 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
             with patch("AI_game.stats.STATS_FILE", path):
                 _save_stats(stats)
                 loaded = _load_stats()
-            self.assertEqual(loaded["model-a|3"]["games_played"], 10)
-            self.assertEqual(loaded["model-a|3"]["games_won"], 4)
-            self.assertEqual(loaded["model-a|3"]["total_tokens"], 5000)
-            self.assertEqual(loaded["model-a|3"]["cached_tokens"], 2000)
+            self.assertEqual(loaded["model-a|3|No|No"]["games_played"], 10)
+            self.assertEqual(loaded["model-a|3|No|No"]["games_won"], 4)
+            self.assertEqual(loaded["model-a|3|No|No"]["total_tokens"], 5000)
+            self.assertEqual(loaded["model-a|3|No|No"]["cached_tokens"], 2000)
         finally:
             os.remove(path)
 
@@ -88,9 +123,11 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|3": {
+                "model-a|3|No|No": {
                     "model": "model-a",
                     "history_depth": 3,
+                    "rules": "No",
+                    "strategy": "No",
                     "games_played": 10,
                     "games_won": 3,
                     "total_tokens": 0,
@@ -132,13 +169,13 @@ class TestRecordGame(unittest.TestCase):
                 record_game(agents, agents[0])
                 stats = _load_stats()
 
-            self.assertEqual(stats["model-a|3"]["games_played"], 1)
-            self.assertEqual(stats["model-a|3"]["games_won"], 1)
-            self.assertEqual(stats["model-a|3"]["total_tokens"], 150)
+            self.assertEqual(stats["model-a|3|No|No"]["games_played"], 1)
+            self.assertEqual(stats["model-a|3|No|No"]["games_won"], 1)
+            self.assertEqual(stats["model-a|3|No|No"]["total_tokens"], 150)
 
-            self.assertEqual(stats["model-b|3"]["games_played"], 1)
-            self.assertEqual(stats["model-b|3"]["games_won"], 0)
-            self.assertEqual(stats["model-b|3"]["total_tokens"], 300)
+            self.assertEqual(stats["model-b|3|No|No"]["games_played"], 1)
+            self.assertEqual(stats["model-b|3|No|No"]["games_won"], 0)
+            self.assertEqual(stats["model-b|3|No|No"]["total_tokens"], 300)
         finally:
             if os.path.exists(path):
                 os.remove(path)
@@ -174,10 +211,10 @@ class TestRecordGame(unittest.TestCase):
                 record_game(agents, agents[1])
                 stats = _load_stats()
 
-            self.assertEqual(stats["model-a|5"]["games_played"], 2)
-            self.assertEqual(stats["model-a|5"]["games_won"], 1)
-            self.assertEqual(stats["model-b|5"]["games_played"], 2)
-            self.assertEqual(stats["model-b|5"]["games_won"], 1)
+            self.assertEqual(stats["model-a|5|No|No"]["games_played"], 2)
+            self.assertEqual(stats["model-a|5|No|No"]["games_won"], 1)
+            self.assertEqual(stats["model-b|5|No|No"]["games_played"], 2)
+            self.assertEqual(stats["model-b|5|No|No"]["games_won"], 1)
         finally:
             if os.path.exists(path):
                 os.remove(path)
@@ -217,11 +254,11 @@ class TestRecordGame(unittest.TestCase):
                 stats = _load_stats()
 
             # Depth 3 row
-            self.assertEqual(stats["model-a|3"]["games_played"], 1)
-            self.assertEqual(stats["model-a|3"]["games_won"], 1)
+            self.assertEqual(stats["model-a|3|No|No"]["games_played"], 1)
+            self.assertEqual(stats["model-a|3|No|No"]["games_won"], 1)
             # Depth 5 row (separate)
-            self.assertEqual(stats["model-a|5"]["games_played"], 1)
-            self.assertEqual(stats["model-a|5"]["games_won"], 0)
+            self.assertEqual(stats["model-a|5|No|No"]["games_played"], 1)
+            self.assertEqual(stats["model-a|5|No|No"]["games_won"], 0)
         finally:
             if os.path.exists(path):
                 os.remove(path)
@@ -252,17 +289,17 @@ class TestRecordGame(unittest.TestCase):
 
             # Each depth should have 1 game played
             for d in range(1, 5):
-                self.assertEqual(stats[f"gemini|{d}"]["games_played"], 1)
+                self.assertEqual(stats[f"gemini|{d}|No|No"]["games_played"], 1)
 
             # Only depth=3 should have the win
-            self.assertEqual(stats["gemini|1"]["games_won"], 0)
-            self.assertEqual(stats["gemini|2"]["games_won"], 0)
-            self.assertEqual(stats["gemini|3"]["games_won"], 1)
-            self.assertEqual(stats["gemini|4"]["games_won"], 0)
+            self.assertEqual(stats["gemini|1|No|No"]["games_won"], 0)
+            self.assertEqual(stats["gemini|2|No|No"]["games_won"], 0)
+            self.assertEqual(stats["gemini|3|No|No"]["games_won"], 1)
+            self.assertEqual(stats["gemini|4|No|No"]["games_won"], 0)
 
             # Winner Elo should be highest
             self.assertGreater(
-                stats["gemini|3"]["elo"], stats["gemini|1"]["elo"]
+                stats["gemini|3|No|No"]["elo"], stats["gemini|1|No|No"]["elo"]
             )
         finally:
             if os.path.exists(path):
@@ -277,34 +314,36 @@ class TestComputeEloUpdates(unittest.TestCase):
     def test_two_player_equal_elo(self):
         """Equal ELO: winner gets +16, loser gets -16 (K=32, 2 players)."""
         stats = {
-            "a|2": {"elo": 1500.0},
-            "b|2": {"elo": 1500.0},
+            "a|2|No|No": {"elo": 1500.0},
+            "b|2|No|No": {"elo": 1500.0},
         }
-        result = _compute_elo_updates(["a|2", "b|2"], stats, "a|2")
-        self.assertAlmostEqual(result["a|2"], 1516.0, places=1)
-        self.assertAlmostEqual(result["b|2"], 1484.0, places=1)
+        result = _compute_elo_updates(
+            ["a|2|No|No", "b|2|No|No"], stats, "a|2|No|No")
+        self.assertAlmostEqual(result["a|2|No|No"], 1516.0, places=1)
+        self.assertAlmostEqual(result["b|2|No|No"], 1484.0, places=1)
 
     def test_elo_conservation(self):
         """Total ELO must be conserved (zero-sum)."""
         stats = {
-            "a|2": {"elo": 1600.0},
-            "b|2": {"elo": 1500.0},
-            "c|2": {"elo": 1400.0},
+            "a|2|No|No": {"elo": 1600.0},
+            "b|2|No|No": {"elo": 1500.0},
+            "c|2|No|No": {"elo": 1400.0},
         }
-        keys = ["a|2", "b|2", "c|2"]
+        keys = ["a|2|No|No", "b|2|No|No", "c|2|No|No"]
         total_before = sum(stats[k]["elo"] for k in keys)
-        result = _compute_elo_updates(keys, stats, "c|2")
+        result = _compute_elo_updates(keys, stats, "c|2|No|No")
         total_after = sum(result[k] for k in keys)
         self.assertAlmostEqual(total_before, total_after, places=5)
 
     def test_underdog_wins_gains_more(self):
         """A lower-rated player winning should gain more than 16."""
         stats = {
-            "a|2": {"elo": 1300.0},
-            "b|2": {"elo": 1700.0},
+            "a|2|No|No": {"elo": 1300.0},
+            "b|2|No|No": {"elo": 1700.0},
         }
-        result = _compute_elo_updates(["a|2", "b|2"], stats, "a|2")
-        gain = result["a|2"] - 1300.0
+        result = _compute_elo_updates(
+            ["a|2|No|No", "b|2|No|No"], stats, "a|2|No|No")
+        gain = result["a|2|No|No"] - 1300.0
         self.assertGreater(gain, 16.0)
 
 
@@ -340,7 +379,7 @@ class TestEloRating(unittest.TestCase):
                 stats = _load_stats()
             # Both should have ELO near 1500 (winner slightly above, loser below)
             self.assertAlmostEqual(
-                stats["model-a|2"]["elo"] + stats["model-b|2"]["elo"],
+                stats["model-a|2|No|No"]["elo"] + stats["model-b|2|No|No"]["elo"],
                 3000.0, places=5,
             )
         finally:
@@ -357,8 +396,8 @@ class TestEloRating(unittest.TestCase):
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
                 record_game(agents, agents[0])
                 stats = _load_stats()
-            self.assertGreater(stats["model-a|2"]["elo"], ELO_START)
-            self.assertLess(stats["model-b|2"]["elo"], ELO_START)
+            self.assertGreater(stats["model-a|2|No|No"]["elo"], ELO_START)
+            self.assertLess(stats["model-b|2|No|No"]["elo"], ELO_START)
         finally:
             self._cleanup(path, log_path)
 
@@ -377,13 +416,13 @@ class TestEloRating(unittest.TestCase):
                 record_game(agents, agents[0])
                 stats = _load_stats()
             # Winner gains
-            self.assertGreater(stats["model-a|2"]["elo"], ELO_START)
+            self.assertGreater(stats["model-a|2|No|No"]["elo"], ELO_START)
             # All losers have equal ELO change (they all drew against each other)
-            loser_elos = [stats[f"model-{x}|2"]["elo"] for x in "bcd"]
+            loser_elos = [stats[f"model-{x}|2|No|No"]["elo"] for x in "bcd"]
             self.assertAlmostEqual(loser_elos[0], loser_elos[1], places=5)
             self.assertAlmostEqual(loser_elos[1], loser_elos[2], places=5)
             # Total approximately conserved (CSV rounds ELO to 1 decimal)
-            total = stats["model-a|2"]["elo"] + sum(loser_elos)
+            total = stats["model-a|2|No|No"]["elo"] + sum(loser_elos)
             self.assertAlmostEqual(total, 4 * ELO_START, delta=0.5)
         finally:
             self._cleanup(path, log_path)
@@ -399,7 +438,7 @@ class TestEloRating(unittest.TestCase):
                  patch("AI_game.stats.GAME_LOG_FILE", log_path):
                 record_game(agents, agents[0])
                 stats1 = _load_stats()
-                elo_a_after_1 = stats1["model-a|2"]["elo"]
+                elo_a_after_1 = stats1["model-a|2|No|No"]["elo"]
                 # Second game, model-a wins again
                 agents[0].prompt_tokens = 0
                 agents[0].completion_tokens = 0
@@ -410,7 +449,7 @@ class TestEloRating(unittest.TestCase):
                 record_game(agents, agents[0])
                 stats2 = _load_stats()
             # ELO should have continued from previous value, not reset
-            self.assertGreater(stats2["model-a|2"]["elo"], elo_a_after_1)
+            self.assertGreater(stats2["model-a|2|No|No"]["elo"], elo_a_after_1)
         finally:
             self._cleanup(path, log_path)
 
@@ -436,7 +475,8 @@ class TestEloRating(unittest.TestCase):
                 })
             with patch("AI_game.stats.STATS_FILE", path):
                 stats = _load_stats()
-            self.assertAlmostEqual(stats["old-model|2"]["elo"], ELO_START)
+            self.assertAlmostEqual(
+                stats["old-model|2|No|No"]["elo"], ELO_START)
         finally:
             self._cleanup(path, log_path)
 
@@ -462,10 +502,10 @@ class TestEloRating(unittest.TestCase):
                 })
             with patch("AI_game.stats.STATS_FILE", path):
                 stats = _load_stats()
-            self.assertEqual(stats["old-model|2"]["bluffs"], 0)
-            self.assertEqual(stats["old-model|2"]["bluffs_caught"], 0)
-            self.assertEqual(stats["old-model|2"]["challenges_issued"], 0)
-            self.assertEqual(stats["old-model|2"]["challenges_correct"], 0)
+            self.assertEqual(stats["old-model|2|No|No"]["bluffs"], 0)
+            self.assertEqual(stats["old-model|2|No|No"]["bluffs_caught"], 0)
+            self.assertEqual(stats["old-model|2|No|No"]["challenges_issued"], 0)
+            self.assertEqual(stats["old-model|2|No|No"]["challenges_correct"], 0)
         finally:
             self._cleanup(path, log_path)
 
@@ -494,8 +534,9 @@ class TestBluffChallengeStats(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
+                    "rules": "No", "strategy": "No",
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
                     "bluffs": 10, "bluffs_caught": 3,
@@ -518,8 +559,9 @@ class TestBluffChallengeStats(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
+                    "rules": "No", "strategy": "No",
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
                     "bluffs": 0, "bluffs_caught": 0,
@@ -541,8 +583,9 @@ class TestBluffChallengeStats(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
+                    "rules": "No", "strategy": "No",
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
                     "bluffs": 0, "bluffs_caught": 0,
@@ -565,8 +608,9 @@ class TestBluffChallengeStats(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
+                    "rules": "No", "strategy": "No",
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
                     "bluffs": 0, "bluffs_caught": 0,
@@ -588,8 +632,9 @@ class TestBluffChallengeStats(unittest.TestCase):
             path = f.name
         try:
             stats = {
-                "model-a|2": {
+                "model-a|2|No|No": {
                     "model": "model-a", "history_depth": 2,
+                    "rules": "No", "strategy": "No",
                     "games_played": 5, "games_won": 2,
                     "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
                     "bluffs": 12, "bluffs_caught": 4,
@@ -599,10 +644,10 @@ class TestBluffChallengeStats(unittest.TestCase):
             with patch("AI_game.stats.STATS_FILE", path):
                 _save_stats(stats)
                 loaded = _load_stats()
-            self.assertEqual(loaded["model-a|2"]["bluffs"], 12)
-            self.assertEqual(loaded["model-a|2"]["bluffs_caught"], 4)
-            self.assertEqual(loaded["model-a|2"]["challenges_issued"], 7)
-            self.assertEqual(loaded["model-a|2"]["challenges_correct"], 3)
+            self.assertEqual(loaded["model-a|2|No|No"]["bluffs"], 12)
+            self.assertEqual(loaded["model-a|2|No|No"]["bluffs_caught"], 4)
+            self.assertEqual(loaded["model-a|2|No|No"]["challenges_issued"], 7)
+            self.assertEqual(loaded["model-a|2|No|No"]["challenges_correct"], 3)
         finally:
             os.remove(path)
 
@@ -643,27 +688,260 @@ class TestBluffChallengeStats(unittest.TestCase):
                 stats = _load_stats()
 
             # model-a: 3+2=5 bluffs, 1+2=3 caught, 2+1=3 issued, 1+0=1 correct
-            self.assertEqual(stats["model-a|2"]["bluffs"], 5)
-            self.assertEqual(stats["model-a|2"]["bluffs_caught"], 3)
-            self.assertEqual(stats["model-a|2"]["challenges_issued"], 3)
-            self.assertEqual(stats["model-a|2"]["challenges_correct"], 1)
+            self.assertEqual(stats["model-a|2|No|No"]["bluffs"], 5)
+            self.assertEqual(stats["model-a|2|No|No"]["bluffs_caught"], 3)
+            self.assertEqual(stats["model-a|2|No|No"]["challenges_issued"], 3)
+            self.assertEqual(stats["model-a|2|No|No"]["challenges_correct"], 1)
 
             # model-b: 1+0=1 bluffs, 0+0=0 caught, 4+3=7 issued, 2+1=3 correct
-            self.assertEqual(stats["model-b|2"]["bluffs"], 1)
-            self.assertEqual(stats["model-b|2"]["bluffs_caught"], 0)
-            self.assertEqual(stats["model-b|2"]["challenges_issued"], 7)
-            self.assertEqual(stats["model-b|2"]["challenges_correct"], 3)
+            self.assertEqual(stats["model-b|2|No|No"]["bluffs"], 1)
+            self.assertEqual(stats["model-b|2|No|No"]["bluffs_caught"], 0)
+            self.assertEqual(stats["model-b|2|No|No"]["challenges_issued"], 7)
+            self.assertEqual(stats["model-b|2|No|No"]["challenges_correct"], 3)
         finally:
             self._cleanup(path, log_path)
 
     def test_new_columns_in_fieldnames(self):
-        """Verify all 6 new columns are in FIELDNAMES."""
+        """Verify all bluff/challenge columns are in FIELDNAMES."""
         self.assertIn("bluffs", FIELDNAMES)
         self.assertIn("bluffs_caught", FIELDNAMES)
         self.assertIn("bluff_success_rate", FIELDNAMES)
         self.assertIn("challenges_issued", FIELDNAMES)
         self.assertIn("challenges_correct", FIELDNAMES)
         self.assertIn("challenge_success_rate", FIELDNAMES)
+
+
+class TestRulesStrategyColumns(unittest.TestCase):
+    """Verify rules and strategy columns appear in FIELDNAMES."""
+
+    def test_rules_column_in_fieldnames(self):
+        self.assertIn("rules", FIELDNAMES)
+
+    def test_strategy_column_in_fieldnames(self):
+        self.assertIn("strategy", FIELDNAMES)
+
+    def test_rules_strategy_after_depth_before_games(self):
+        """rules and strategy columns appear after history_depth, before games_played."""
+        depth_idx = FIELDNAMES.index("history_depth")
+        rules_idx = FIELDNAMES.index("rules")
+        strategy_idx = FIELDNAMES.index("strategy")
+        played_idx = FIELDNAMES.index("games_played")
+        self.assertGreater(rules_idx, depth_idx)
+        self.assertGreater(strategy_idx, depth_idx)
+        self.assertLess(rules_idx, played_idx)
+        self.assertLess(strategy_idx, played_idx)
+
+
+class TestExpandedKeyLogic(unittest.TestCase):
+    """Tests for rules_summary and strategy_guide in composite key."""
+
+    def _make_temp_paths(self):
+        f1 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f2 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        path, log_path = f1.name, f2.name
+        f1.close()
+        f2.close()
+        os.remove(path)
+        os.remove(log_path)
+        return path, log_path
+
+    def _cleanup(self, *paths):
+        for p in paths:
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_different_rules_produce_separate_rows(self):
+        """Same model+depth but different rules_summary should produce separate rows."""
+        path, log_path = self._make_temp_paths()
+        try:
+            agent_no_rules = FakeAgent(model="gpt-4", history_depth=2,
+                                       rules_summary=False)
+            agent_with_rules = FakeAgent(model="gpt-4", history_depth=2,
+                                         rules_summary=True)
+            agents_game1 = [agent_no_rules,
+                            FakeAgent(model="other", history_depth=2)]
+            agents_game2 = [agent_with_rules,
+                            FakeAgent(model="other", history_depth=2)]
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents_game1, agents_game1[0])
+                record_game(agents_game2, agents_game2[0])
+                stats = _load_stats()
+
+            self.assertIn("gpt-4|2|No|No", stats)
+            self.assertIn("gpt-4|2|Yes|No", stats)
+            self.assertEqual(stats["gpt-4|2|No|No"]["games_played"], 1)
+            self.assertEqual(stats["gpt-4|2|Yes|No"]["games_played"], 1)
+        finally:
+            self._cleanup(path, log_path)
+
+    def test_different_strategy_produce_separate_rows(self):
+        """Same model+depth but different strategy_guide should produce separate rows."""
+        path, log_path = self._make_temp_paths()
+        try:
+            agent_no_strat = FakeAgent(model="gpt-4", history_depth=2,
+                                       strategy_guide=False)
+            agent_with_strat = FakeAgent(model="gpt-4", history_depth=2,
+                                         strategy_guide=True)
+            agents_game1 = [agent_no_strat,
+                            FakeAgent(model="other", history_depth=2)]
+            agents_game2 = [agent_with_strat,
+                            FakeAgent(model="other", history_depth=2)]
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents_game1, agents_game1[0])
+                record_game(agents_game2, agents_game2[0])
+                stats = _load_stats()
+
+            self.assertIn("gpt-4|2|No|No", stats)
+            self.assertIn("gpt-4|2|No|Yes", stats)
+            self.assertEqual(stats["gpt-4|2|No|No"]["games_played"], 1)
+            self.assertEqual(stats["gpt-4|2|No|Yes"]["games_played"], 1)
+        finally:
+            self._cleanup(path, log_path)
+
+    def test_all_four_combos_separate_rows(self):
+        """All four (rules, strategy) combos for same model+depth produce separate rows."""
+        path, log_path = self._make_temp_paths()
+        try:
+            combos = [
+                (False, False),
+                (True, False),
+                (False, True),
+                (True, True),
+            ]
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                for rules, strategy in combos:
+                    agents = [
+                        FakeAgent(model="gpt-4", history_depth=2,
+                                  rules_summary=rules, strategy_guide=strategy),
+                        FakeAgent(model="other", history_depth=2),
+                    ]
+                    record_game(agents, agents[0])
+                stats = _load_stats()
+
+            self.assertIn("gpt-4|2|No|No", stats)
+            self.assertIn("gpt-4|2|Yes|No", stats)
+            self.assertIn("gpt-4|2|No|Yes", stats)
+            self.assertIn("gpt-4|2|Yes|Yes", stats)
+            for key in ["gpt-4|2|No|No", "gpt-4|2|Yes|No",
+                         "gpt-4|2|No|Yes", "gpt-4|2|Yes|Yes"]:
+                self.assertEqual(stats[key]["games_played"], 1)
+                self.assertEqual(stats[key]["games_won"], 1)
+        finally:
+            self._cleanup(path, log_path)
+
+    def test_rules_strategy_round_trip(self):
+        """rules and strategy values survive save then load."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2|Yes|Yes": {
+                    "model": "model-a", "history_depth": 2,
+                    "rules": "Yes", "strategy": "Yes",
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                    "card_guesses_total": 0, "card_guesses_correct": 0,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+                loaded = _load_stats()
+            self.assertEqual(loaded["model-a|2|Yes|Yes"]["rules"], "Yes")
+            self.assertEqual(loaded["model-a|2|Yes|Yes"]["strategy"], "Yes")
+            self.assertEqual(loaded["model-a|2|Yes|Yes"]["games_played"], 5)
+        finally:
+            os.remove(path)
+
+    def test_rules_strategy_in_csv_output(self):
+        """Saved CSV should contain rules and strategy columns with Yes/No values."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2|Yes|No": {
+                    "model": "model-a", "history_depth": 2,
+                    "rules": "Yes", "strategy": "No",
+                    "games_played": 3, "games_won": 1,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                    "card_guesses_total": 0, "card_guesses_correct": 0,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            self.assertEqual(row["rules"], "Yes")
+            self.assertEqual(row["strategy"], "No")
+        finally:
+            os.remove(path)
+
+    def test_game_log_records_winner_rules_and_strategy(self):
+        """game_log.csv should include the winner's rules_summary and strategy_guide."""
+        path, log_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="model-a", history_depth=2,
+                          rules_summary=True, strategy_guide=True),
+                FakeAgent(model="model-b", history_depth=2),
+            ]
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents, agents[0], seed=42)
+            with open(log_path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            self.assertEqual(row["rules_summary"], "Yes")
+            self.assertEqual(row["strategy_guide"], "Yes")
+        finally:
+            self._cleanup(path, log_path)
+
+    def test_game_log_records_no_rules_no_strategy(self):
+        """game_log.csv should record No when rules/strategy are disabled."""
+        path, log_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="model-a", history_depth=2,
+                          rules_summary=False, strategy_guide=False),
+                FakeAgent(model="model-b", history_depth=2),
+            ]
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents, agents[0], seed=99)
+            with open(log_path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            self.assertEqual(row["rules_summary"], "No")
+            self.assertEqual(row["strategy_guide"], "No")
+        finally:
+            self._cleanup(path, log_path)
+
+    def test_agent_without_rules_strategy_defaults_to_false(self):
+        """Agents missing rules_summary/strategy_guide attrs default to No."""
+        path, log_path = self._make_temp_paths()
+        try:
+            # Create agent without rules_summary/strategy_guide attributes
+            agent = FakeAgent(model="model-a", history_depth=2)
+            del agent.rules_summary
+            del agent.strategy_guide
+            agents = [agent, FakeAgent(model="model-b", history_depth=2)]
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents, agents[0])
+                stats = _load_stats()
+            # Should default to No|No
+            self.assertIn("model-a|2|No|No", stats)
+            self.assertEqual(stats["model-a|2|No|No"]["rules"], "No")
+            self.assertEqual(stats["model-a|2|No|No"]["strategy"], "No")
+        finally:
+            self._cleanup(path, log_path)
 
 
 if __name__ == "__main__":
