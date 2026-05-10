@@ -1,0 +1,3 @@
+Game #,Seed,Survey Interval,Player 1 Model,Player 1 History,Player 1 Rules,Player 1 Strategy,Player 2 Model,Player 2 History,Player 2 Rules,Player 2 Strategy,Player 3 Model,Player 3 History,Player 3 Rules,Player 3 Strategy,Player 4 Model,Player 4 History,Player 4 Rules,Player 4 Strategy,Player 5 Model,Player 5 History,Player 5 Rules,Player 5 Strategy,Player 6 Model,Player 6 History,Player 6 Rules,Player 6 Strategy
+1,2625633111,2,openai/gpt-4o,3,0,0,anthropic/claude-opus-4.6-fast,10,1,0,google/gemini-2.0-flash-001,5,1,1,x-ai/grok-4.3,20,0,1,,,,,,,,
+2,2608373111,4,anthropic/claude-opus-4.6-fast,20,0,1,x-ai/grok-4.3,5,1,1,openai/gpt-4o,3,0,0,google/gemini-2.0-flash-001,10,1,0,,,,,,,,
