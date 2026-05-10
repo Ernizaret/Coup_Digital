@@ -6,9 +6,12 @@ Usage:
     python -m AI_game.bulk --games 20 --quiet
     python -m AI_game.bulk --games 10 --delay 5
     python -m AI_game.bulk --games 100 --preset assassin_mirror
+    python -m AI_game.bulk --csv games.csv
 """
 
 import argparse
+import csv
+import os
 import random
 import sys
 import time
@@ -18,6 +21,7 @@ from AI_game.config import (
     VALID_PROMPT_MODES, DEFAULT_PROMPT_MODE,
 )
 from AI_game.agent_factory import create_agents_from_names, build_agent_names
+from AI_game.agents import create_agent
 from AI_game.game_runner import GameRunner
 
 # ANSI codes for summary output
@@ -31,8 +35,16 @@ def _parse_args():
         description="Run multiple AI Coup games in bulk (headless, no UI).",
     )
     parser.add_argument(
-        "--games", type=int, required=True,
-        help="Number of games to run.",
+        "--games", type=int, default=None,
+        help="Number of games to run. Required unless --csv is used.",
+    )
+    parser.add_argument(
+        "--csv", type=str, default=None,
+        help=(
+            "Path to a CSV file where each row defines a game configuration. "
+            "When used, --games, --agents, --seed, --shuffle, "
+            "--rules-summary, and --strategy-guide are ignored."
+        ),
     )
     parser.add_argument(
         "--agents", type=str, default=None,
@@ -94,7 +106,13 @@ def _parse_args():
             "receives a strategy guide section in its prompt."
         ),
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Validate: either --csv or --games must be provided
+    if args.csv is None and args.games is None:
+        parser.error("Either --games or --csv is required.")
+
+    return args
 
 
 def _resolve_agent_names(agents_arg, config):
@@ -326,6 +344,287 @@ def _print_summary(results, errors, elapsed, prompt_mode):
     print()
 
 
+def _parse_csv(csv_path, config):
+    """Parse a CSV file into a list of per-game configuration dicts.
+
+    Each row defines a fully self-contained game: player models, history
+    depths, rules/strategy flags, seed, and optionally a survey interval.
+
+    The CSV must have a header row.  Supported column names:
+
+        Game #, Seed, Survey Interval,
+        Player 1 Model, Player 1 History, Player 1 Rules, Player 1 Strategy,
+        ...  (up to Player 6)
+
+    Player columns may also use "Player N Name" instead of "Player N Model";
+    in that case the value should be a display name from ai_config.json and
+    the model identifier will be looked up from the config.
+
+    Empty player columns indicate fewer than 6 players in that game.
+
+    Args:
+        csv_path: path to the CSV file.
+        config: parsed ai_config.json dict.
+
+    Returns:
+        list of dicts, one per game row, each containing:
+            "game_num": int
+            "seed": int or None
+            "survey_interval": int or None
+            "players": list of dicts with keys:
+                "name": display name (str)
+                "model": model identifier (str)
+                "history_depth": int
+                "rules_summary": bool
+                "strategy_guide": bool
+
+    Raises:
+        SystemExit on validation errors.
+    """
+    if not os.path.exists(csv_path):
+        print(f"Error: CSV file not found: {csv_path}", file=sys.stderr)
+        sys.exit(1)
+
+    api_key = config["api_key"]
+    agents_cfg = config.get("agents", {})
+    available = get_available_agents(config)
+
+    # Build reverse lookup: model identifier -> display name
+    model_to_name = {}
+    for name, model in agents_cfg.items():
+        model_to_name[model] = name
+
+    games = []
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        headers = reader.fieldnames or []
+
+        # Detect which column naming convention is used for players
+        # Support both "Player N Model" and "Player N Name"
+        player_col_prefix = "Model"  # default
+        for h in headers:
+            if "Player 1 Name" in h:
+                player_col_prefix = "Name"
+                break
+
+        for row_idx, row in enumerate(reader, start=1):
+            # Game number: from "Game #" column, or fall back to row index
+            game_num_raw = row.get("Game #", "").strip()
+            game_num = int(game_num_raw) if game_num_raw else row_idx
+
+            # Seed
+            seed_raw = row.get("Seed", "").strip()
+            seed = int(seed_raw) if seed_raw else None
+
+            # Survey interval
+            survey_raw = row.get("Survey Interval", "").strip()
+            survey_interval = int(survey_raw) if survey_raw else None
+
+            # Parse players (up to 6)
+            players = []
+            name_counts = {}  # for auto-numbering duplicate names
+
+            for p_idx in range(1, 7):
+                model_col = f"Player {p_idx} {player_col_prefix}"
+                history_col = f"Player {p_idx} History"
+                rules_col = f"Player {p_idx} Rules"
+                strategy_col = f"Player {p_idx} Strategy"
+
+                model_or_name = row.get(model_col, "").strip()
+                if not model_or_name:
+                    continue  # no more players
+
+                # Resolve model identifier and display name
+                if player_col_prefix == "Name":
+                    # Value is a display name from ai_config.json
+                    if model_or_name not in available:
+                        print(
+                            f"Error: CSV row {row_idx}, Player {p_idx}: "
+                            f"unknown agent name '{model_or_name}'. "
+                            f"Available: {', '.join(available)}",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                    model = agents_cfg[model_or_name]
+                    base_name = model_or_name
+                else:
+                    # Value is a model identifier -- look up display name
+                    if model_or_name in model_to_name:
+                        model = model_or_name
+                        base_name = model_to_name[model_or_name]
+                    elif model_or_name in available:
+                        # Could also be a display name in "Model" column
+                        model = agents_cfg[model_or_name]
+                        base_name = model_or_name
+                    else:
+                        # Use model identifier as-is (not in config)
+                        print(
+                            f"Error: CSV row {row_idx}, Player {p_idx}: "
+                            f"model '{model_or_name}' not found in "
+                            f"ai_config.json agents. "
+                            f"Available names: {', '.join(available)}, "
+                            f"models: {', '.join(agents_cfg.values())}",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+
+                # Auto-number duplicate display names
+                name_counts[base_name] = name_counts.get(base_name, 0) + 1
+                n = name_counts[base_name]
+                display_name = f"{base_name} {n}" if n > 1 else base_name
+
+                # Parse per-player settings
+                history_raw = row.get(history_col, "").strip()
+                history_depth = int(history_raw) if history_raw else 2
+
+                rules_raw = row.get(rules_col, "").strip()
+                rules_summary = rules_raw == "1"
+
+                strategy_raw = row.get(strategy_col, "").strip()
+                strategy_guide = strategy_raw == "1"
+
+                players.append({
+                    "name": display_name,
+                    "model": model,
+                    "history_depth": history_depth,
+                    "rules_summary": rules_summary,
+                    "strategy_guide": strategy_guide,
+                })
+
+            # Validate player count
+            if len(players) < 2:
+                print(
+                    f"Error: CSV row {row_idx} (Game #{game_num}): "
+                    f"need at least 2 players, found {len(players)}.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            if len(players) > 6:
+                print(
+                    f"Error: CSV row {row_idx} (Game #{game_num}): "
+                    f"maximum 6 players, found {len(players)}.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            games.append({
+                "game_num": game_num,
+                "seed": seed,
+                "survey_interval": survey_interval,
+                "players": players,
+            })
+
+    if not games:
+        print("Error: CSV file contains no game rows.", file=sys.stderr)
+        sys.exit(1)
+
+    return games
+
+
+def _run_csv_bulk(game_configs, config, prompt_mode, quiet, delay,
+                  log=True):
+    """Execute bulk games from CSV-defined per-game configurations.
+
+    Args:
+        game_configs: list of game config dicts from _parse_csv().
+        config: parsed ai_config.json dict.
+        prompt_mode: "heavy" or "light".
+        quiet: if True, suppress play-by-play output.
+        delay: seconds to wait between games.
+        log: if True, write markdown transcripts.
+
+    Returns:
+        tuple of (results, errors).
+    """
+    api_key = config["api_key"]
+    num_games = len(game_configs)
+    results = []
+    errors = []
+
+    print(f"\n{BOLD}{'=' * 60}")
+    print("      COUP — BULK AI GAME RUNNER (CSV MODE)")
+    print(f"{'=' * 60}{RESET}")
+    print(f"  Games to run:  {num_games}")
+    print(f"  Prompt mode:   {prompt_mode}")
+    print(f"  Quiet mode:    {'on' if quiet else 'off'}")
+    if delay > 0:
+        print(f"  Delay:         {delay}s between games")
+    print()
+
+    start_time = time.time()
+
+    for idx, game_cfg in enumerate(game_configs, start=1):
+        game_num = game_cfg["game_num"]
+        game_seed = game_cfg["seed"]
+        survey_interval = game_cfg["survey_interval"]
+        player_cfgs = game_cfg["players"]
+
+        player_desc = ", ".join(
+            f"{p['name']} ({p['model']})" for p in player_cfgs
+        )
+
+        try:
+            # Create agents directly with per-player settings
+            agents = []
+            for pcfg in player_cfgs:
+                agent = create_agent(
+                    name=pcfg["name"],
+                    api_key=api_key,
+                    model=pcfg["model"],
+                    history_depth=pcfg["history_depth"],
+                    rules_summary=pcfg["rules_summary"],
+                    strategy_guide=pcfg["strategy_guide"],
+                )
+                agents.append(agent)
+
+            runner = GameRunner(
+                agents, prompt_mode=prompt_mode, quiet=quiet,
+                log=log, seed=game_seed,
+                survey_interval=survey_interval,
+            )
+            result = runner.run()
+
+            if result is not None:
+                results.append(result)
+                winner = result["winner_name"]
+                game_seed_display = result.get("seed", "?")
+                print(
+                    f"  Game {idx}/{num_games} (#{game_num}) complete "
+                    f"— winner: {BOLD}{winner}{RESET} "
+                    f"(seed: {game_seed_display})"
+                )
+                print(f"    Players: {player_desc}")
+            else:
+                errors.append((game_num, "Game ended abnormally (no winner)"))
+                print(
+                    f"  Game {idx}/{num_games} (#{game_num}) "
+                    f"{DIM}ABORTED (no winner){RESET}",
+                    file=sys.stderr,
+                )
+
+        except KeyboardInterrupt:
+            print(f"\n\n  Interrupted after {idx - 1} games.")
+            break
+
+        except Exception as e:
+            errors.append((game_num, str(e)))
+            print(
+                f"  Game {idx}/{num_games} (#{game_num}) "
+                f"{DIM}ERROR: {e}{RESET}",
+                file=sys.stderr,
+            )
+
+        # Delay between games (skip after the last game)
+        if delay > 0 and idx < num_games:
+            time.sleep(delay)
+
+    elapsed = time.time() - start_time
+    _print_summary(results, errors, elapsed, prompt_mode)
+
+    return results, errors
+
+
 def main():
     args = _parse_args()
 
@@ -341,6 +640,25 @@ def main():
         prompt_mode = args.mode
     else:
         prompt_mode = get_prompt_mode(config)
+
+    # CSV mode: each row in the CSV defines a game configuration
+    if args.csv is not None:
+        game_configs = _parse_csv(args.csv, config)
+        _run_csv_bulk(
+            game_configs=game_configs,
+            config=config,
+            prompt_mode=prompt_mode,
+            quiet=args.quiet,
+            delay=args.delay,
+            log=not args.no_logs,
+        )
+        return
+
+    # Standard mode: uniform settings across all games
+    if args.games is None:
+        print("Error: --games is required when not using --csv.",
+              file=sys.stderr)
+        sys.exit(1)
 
     # Resolve agent list
     agent_display_names = _resolve_agent_names(args.agents, config)
