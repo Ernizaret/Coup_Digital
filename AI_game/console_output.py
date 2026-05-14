@@ -114,6 +114,14 @@ class ConsoleOutput:
         name_str = _colored(name, name)
         print(f"  {DIM}[Fallback] {name_str} defaulting to: {action}{RESET}")
 
+    def agent_timeout(self, name, action):
+        """Show that an agent exceeded the time limit."""
+        if self.quiet:
+            return
+        name_str = _colored(name, name)
+        print(f"  {DIM}[Timeout] {name_str} exceeded 2-minute limit, "
+              f"defaulting to: {action}{RESET}")
+
     def game_state_summary(self, controller):
         """Print compact state table after each turn."""
         if self.quiet:

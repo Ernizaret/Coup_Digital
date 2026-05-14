@@ -884,7 +884,7 @@ class TestExpandedKeyLogic(unittest.TestCase):
             os.remove(path)
 
     def test_game_log_records_winner_rules_and_strategy(self):
-        """game_log.csv should include the winner's rules_summary and strategy_guide."""
+        """game_log.csv should include rules and strategy in player identity."""
         path, log_path = self._make_temp_paths()
         try:
             agents = [
@@ -898,8 +898,10 @@ class TestExpandedKeyLogic(unittest.TestCase):
             with open(log_path, newline="") as f:
                 reader = csv.DictReader(f)
                 row = next(reader)
-            self.assertEqual(row["rules_summary"], "Yes")
-            self.assertEqual(row["strategy_guide"], "Yes")
+            self.assertIn("rules=Yes", row["Player 1"])
+            self.assertIn("strategy=Yes", row["Player 1"])
+            self.assertIn("rules=No", row["Player 2"])
+            self.assertIn("strategy=No", row["Player 2"])
         finally:
             self._cleanup(path, log_path)
 
@@ -918,8 +920,8 @@ class TestExpandedKeyLogic(unittest.TestCase):
             with open(log_path, newline="") as f:
                 reader = csv.DictReader(f)
                 row = next(reader)
-            self.assertEqual(row["rules_summary"], "No")
-            self.assertEqual(row["strategy_guide"], "No")
+            self.assertIn("rules=No", row["Player 1"])
+            self.assertIn("strategy=No", row["Player 1"])
         finally:
             self._cleanup(path, log_path)
 
