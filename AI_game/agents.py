@@ -104,6 +104,7 @@ class Agent:
         self._client = OpenAI(
             api_key=api_key,
             base_url=OPENROUTER_BASE_URL,
+            timeout=150.0,
         )
 
     def _track_usage(self, usage):

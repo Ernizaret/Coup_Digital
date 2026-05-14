@@ -1,9 +1,10 @@
-"""Tests for bluff/challenge tracking in AI_game.game_runner.GameRunner."""
+"""Tests for bluff/challenge tracking and timeout logic in AI_game.game_runner."""
 
 import unittest
+from unittest.mock import patch, MagicMock
 
 from src.controller import GameController, State
-from AI_game.game_runner import GameRunner
+from AI_game.game_runner import GameRunner, smart_default, QUERY_TIMEOUT
 
 
 class FakeAgent:
@@ -552,6 +553,191 @@ class TestChallengeOutcomes(unittest.TestCase):
         self.assertEqual(agent_alice.challenges_correct, 0)
         # Bob was NOT caught
         self.assertEqual(agent_bob.bluffs_caught, 0)
+
+
+class TestSmartDefault(unittest.TestCase):
+    """Unit tests for the smart_default() fallback picker."""
+
+    def _make_controller(self):
+        """Create a 2-player controller past setup."""
+        ctrl = GameController()
+        ctrl.handle_input("2")
+        ctrl.handle_input("Alice")
+        ctrl.handle_input("Bob")
+        return ctrl
+
+    def test_income_default_for_choose_action(self):
+        ctrl = self._make_controller()
+        options = ["Income", "Foreign Aid", "Tax", "Steal", "Exchange"]
+        result = smart_default(State.CHOOSE_ACTION, options, ctrl)
+        self.assertEqual(result, "Income")
+
+    def test_forced_coup_when_10_coins(self):
+        ctrl = self._make_controller()
+        ctrl.current_player.coins = 10
+        options = ["Coup"]
+        result = smart_default(State.CHOOSE_ACTION, options, ctrl)
+        self.assertEqual(result, "Coup")
+
+    def test_challenge_query_defaults_no(self):
+        ctrl = self._make_controller()
+        result = smart_default(State.CHALLENGE_QUERY, ["Yes", "No"], ctrl)
+        self.assertEqual(result, "No")
+
+    def test_challenge_block_query_defaults_no(self):
+        ctrl = self._make_controller()
+        result = smart_default(
+            State.CHALLENGE_BLOCK_QUERY, ["Yes", "No"], ctrl,
+        )
+        self.assertEqual(result, "No")
+
+    def test_block_query_defaults_dont_block(self):
+        ctrl = self._make_controller()
+        options = ["Block with Duke", "Don't block"]
+        result = smart_default(State.BLOCK_QUERY, options, ctrl)
+        self.assertEqual(result, "Don't block")
+
+    def test_choose_target_returns_valid_option(self):
+        ctrl = self._make_controller()
+        options = ["Alice", "Bob"]
+        result = smart_default(State.CHOOSE_TARGET, options, ctrl)
+        self.assertIn(result, options)
+
+    def test_lose_influence_returns_valid_option(self):
+        ctrl = self._make_controller()
+        options = ["Duke", "Captain"]
+        result = smart_default(State.LOSE_INFLUENCE, options, ctrl)
+        self.assertIn(result, options)
+
+    def test_exchange_return_first_returns_valid_option(self):
+        ctrl = self._make_controller()
+        options = ["Duke", "Captain", "Assassin"]
+        result = smart_default(State.EXCHANGE_RETURN_FIRST, options, ctrl)
+        self.assertIn(result, options)
+
+    def test_exchange_return_second_returns_valid_option(self):
+        ctrl = self._make_controller()
+        options = ["Duke", "Captain"]
+        result = smart_default(State.EXCHANGE_RETURN_SECOND, options, ctrl)
+        self.assertIn(result, options)
+
+
+class SlowFakeAgent:
+    """Agent stub that simulates slow responses via mocked time."""
+
+    def __init__(self, name, delay_per_call=0):
+        self.name = name
+        self.model = "test-model"
+        self.history_depth = 2
+        self.rules_summary = False
+        self.strategy_guide = False
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.cached_tokens = 0
+        self.query_count = 0
+        self.bluffs = 0
+        self.bluffs_caught = 0
+        self.challenges_issued = 0
+        self.challenges_correct = 0
+        self.card_guesses_total = 0
+        self.card_guesses_correct = 0
+        self.call_count = 0
+
+    def query_structured(self, prompt_sections):
+        self.call_count += 1
+        raise Exception("Simulated slow failure")
+
+
+class TestQueryAgentTimeout(unittest.TestCase):
+    """Integration tests for the timeout logic in _query_agent."""
+
+    def _make_runner_with_slow_agent(self):
+        agents = [SlowFakeAgent("Alice"), SlowFakeAgent("Bob")]
+        runner = GameRunner(agents, quiet=True, log=False)
+        runner._setup_game()
+        return runner, agents
+
+    @patch("AI_game.game_runner.time")
+    def test_timeout_triggers_smart_default(self, mock_time):
+        """When the deadline is exceeded, smart_default is used."""
+        runner, agents = self._make_runner_with_slow_agent()
+        ctrl = runner.controller
+
+        # Simulate: first monotonic() call returns 0 (deadline set),
+        # second call (pre-attempt check) returns 0 (within budget),
+        # third call (post-attempt check) returns deadline+1 (expired)
+        mock_time.monotonic = MagicMock(
+            side_effect=[0, 0, QUERY_TIMEOUT + 1],
+        )
+
+        player = ctrl.game.players[0]
+        options = ["Income", "Foreign Aid", "Tax"]
+
+        action, speech = runner._query_agent(agents[0], player, options)
+        self.assertEqual(action, "Income")
+        self.assertEqual(speech, "")
+        # Only one attempt should have been made
+        self.assertEqual(agents[0].call_count, 1)
+
+    @patch("AI_game.game_runner.time")
+    def test_no_retry_after_budget_exceeded(self, mock_time):
+        """After a failed attempt, if budget is exceeded, no further retry."""
+        runner, agents = self._make_runner_with_slow_agent()
+        ctrl = runner.controller
+
+        # First call: deadline set at 0+120=120
+        # Second call: pre-attempt 1 check -> 0 (within budget)
+        # Third call: post-attempt 1 check -> 121 (expired, no retry)
+        mock_time.monotonic = MagicMock(
+            side_effect=[0, 0, QUERY_TIMEOUT + 1],
+        )
+
+        player = ctrl.game.players[0]
+        options = ["Yes", "No"]
+        # Simulate a CHALLENGE_QUERY state
+        ctrl.state = State.CHALLENGE_QUERY
+
+        action, speech = runner._query_agent(agents[0], player, options)
+        self.assertEqual(action, "No")  # smart_default for challenge
+        self.assertEqual(agents[0].call_count, 1)
+
+    @patch("AI_game.game_runner.time")
+    def test_retries_work_within_budget(self, mock_time):
+        """Normal retry behavior when within the time budget."""
+        runner, agents = self._make_runner_with_slow_agent()
+        ctrl = runner.controller
+
+        # All monotonic() calls return 0 (always within budget)
+        mock_time.monotonic = MagicMock(return_value=0)
+
+        player = ctrl.game.players[0]
+        options = ["Income", "Foreign Aid"]
+
+        action, speech = runner._query_agent(agents[0], player, options)
+        # All 3 retries should have been attempted
+        self.assertEqual(agents[0].call_count, 3)
+        # Falls back via smart_default (not timeout)
+        self.assertEqual(action, "Income")
+
+    @patch("AI_game.game_runner.time")
+    def test_pre_attempt_budget_check(self, mock_time):
+        """If budget is already exceeded before attempt, skip immediately."""
+        runner, agents = self._make_runner_with_slow_agent()
+        ctrl = runner.controller
+
+        # First call: deadline set at 0+120=120
+        # Second call: pre-attempt check -> already expired
+        mock_time.monotonic = MagicMock(
+            side_effect=[0, QUERY_TIMEOUT + 1],
+        )
+
+        player = ctrl.game.players[0]
+        options = ["Income", "Foreign Aid"]
+
+        action, speech = runner._query_agent(agents[0], player, options)
+        # No attempt should have been made
+        self.assertEqual(agents[0].call_count, 0)
+        self.assertEqual(action, "Income")
 
 
 if __name__ == "__main__":

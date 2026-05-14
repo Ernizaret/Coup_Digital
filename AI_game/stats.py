@@ -17,10 +17,23 @@ FIELDNAMES = [
 
 ELO_START = 1500.0
 ELO_K = 32
-GAME_LOG_FIELDNAMES = [
-    "timestamp", "seed", "winner_model", "history_depth",
-    "rules_summary", "strategy_guide", "players",
+_MAX_PLAYERS = 6
+_STAT_PAIRS = [
+    ("bluffs", "bluffs_caught"),
+    ("challenges_issued", "challenges_correct"),
+    ("card_guesses_total", "card_guesses_correct"),
 ]
+
+GAME_LOG_FIELDNAMES = ["timestamp", "seed"]
+# Player identity columns (up to 4 players)
+for _n in range(1, 5):
+    GAME_LOG_FIELDNAMES.append(f"Player {_n}")
+GAME_LOG_FIELDNAMES.append("winner_model")
+# Behavioral stats grouped by stat type across all players
+for _pair in _STAT_PAIRS:
+    for _n in range(1, _MAX_PLAYERS + 1):
+        for _field in _pair:
+            GAME_LOG_FIELDNAMES.append(f"Player {_n} {_field}")
 
 
 def _make_key(model, history_depth, rules_summary=False, strategy_guide=False):
@@ -122,26 +135,35 @@ def _save_stats(stats):
 def _append_game_log(agents, winner_agent, seed):
     """Append a single game entry to the per-game log CSV."""
     file_exists = os.path.exists(GAME_LOG_FILE)
-    winner_depth = getattr(winner_agent, "history_depth", 2)
-    winner_rules = getattr(winner_agent, "rules_summary", False)
-    winner_strategy = getattr(winner_agent, "strategy_guide", False)
     with open(GAME_LOG_FILE, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=GAME_LOG_FIELDNAMES)
         if not file_exists:
             writer.writeheader()
-        players = ", ".join(
-            f"{getattr(a, 'name', '?')} ({a.model}, depth={getattr(a, 'history_depth', 2)})"
-            for a in agents
-        )
-        writer.writerow({
+        row = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "seed": seed if seed is not None else "",
             "winner_model": winner_agent.model,
-            "history_depth": winner_depth,
-            "rules_summary": "Yes" if winner_rules else "No",
-            "strategy_guide": "Yes" if winner_strategy else "No",
-            "players": players,
-        })
+        }
+        # Player identity columns (model + config summary)
+        for i, agent in enumerate(agents[:4], start=1):
+            depth = getattr(agent, "history_depth", 2)
+            rules = getattr(agent, "rules_summary", False)
+            strategy = getattr(agent, "strategy_guide", False)
+            row[f"Player {i}"] = (
+                f"{agent.model}, depth={depth}, "
+                f"rules={'Yes' if rules else 'No'}, "
+                f"strategy={'Yes' if strategy else 'No'}"
+            )
+        # Per-player behavioral stats
+        for i, agent in enumerate(agents[:_MAX_PLAYERS], start=1):
+            prefix = f"Player {i}"
+            row[f"{prefix} bluffs"] = getattr(agent, "bluffs", 0)
+            row[f"{prefix} bluffs_caught"] = getattr(agent, "bluffs_caught", 0)
+            row[f"{prefix} challenges_issued"] = getattr(agent, "challenges_issued", 0)
+            row[f"{prefix} challenges_correct"] = getattr(agent, "challenges_correct", 0)
+            row[f"{prefix} card_guesses_total"] = getattr(agent, "card_guesses_total", 0)
+            row[f"{prefix} card_guesses_correct"] = getattr(agent, "card_guesses_correct", 0)
+        writer.writerow(row)
 
 
 def _compute_elo_updates(agent_keys, stats, winner_key):

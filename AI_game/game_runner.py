@@ -1,7 +1,9 @@
 """Core orchestration loop: drives GameController with AI agents."""
 
 import json
+import random
 import re
+import time
 from collections import Counter
 
 from src.controller import GameController, State
@@ -17,7 +19,36 @@ from AI_game.stats import record_game
 from AI_game.presets import get_preset, apply_preset
 
 MAX_RETRIES = 3
+QUERY_TIMEOUT = 120
 DEFAULT_SURVEY_INTERVAL = 2
+
+
+def smart_default(state, options, controller):
+    """Pick a safe default action for an AI player that timed out or exhausted retries.
+
+    Args:
+        state: the current controller State
+        options: list of valid option strings
+        controller: the GameController instance
+
+    Returns:
+        A string from options.
+    """
+    if state == State.CHOOSE_ACTION:
+        if "Coup" in options and controller.current_player.coins >= 10:
+            return "Coup"
+        if "Income" in options:
+            return "Income"
+    elif state == State.CHOOSE_TARGET:
+        return random.choice(options)
+    elif state in (State.CHALLENGE_QUERY, State.CHALLENGE_BLOCK_QUERY):
+        return "No"
+    elif state == State.BLOCK_QUERY:
+        return "Don't block"
+    elif state in (State.LOSE_INFLUENCE, State.EXCHANGE_RETURN_FIRST,
+                   State.EXCHANGE_RETURN_SECOND):
+        return random.choice(options)
+    return options[0]
 
 
 class GameRunner:
@@ -325,6 +356,9 @@ class GameRunner:
     def _query_agent(self, agent, player, options):
         """Build prompt, query agent, parse response. Retry on failure.
 
+        Uses a wall-clock deadline of QUERY_TIMEOUT seconds. If the budget
+        is exceeded (including across retries), falls back to smart_default().
+
         Returns (action, speech) tuple.
         """
         prompt_sections = build_prompt_sections(
@@ -334,7 +368,14 @@ class GameRunner:
             strategy_guide=agent.strategy_guide,
         )
 
+        deadline = time.monotonic() + QUERY_TIMEOUT
+        timed_out = False
+
         for attempt in range(1, MAX_RETRIES + 1):
+            if time.monotonic() >= deadline:
+                timed_out = True
+                break
+
             try:
                 self.output.agent_thinking(agent.name)
                 raw = agent.query_structured(prompt_sections)
@@ -351,9 +392,18 @@ class GameRunner:
                 self.output.agent_done()
                 self.output.agent_error(agent.name, attempt, f"API error: {e}")
 
-        # All retries exhausted -- fall back to first valid option
-        fallback = options[0]
-        self.output.agent_fallback(agent.name, fallback)
+            if time.monotonic() >= deadline:
+                timed_out = True
+                break
+
+        # Fall back to a safe default
+        fallback = smart_default(
+            self.controller.state, options, self.controller,
+        )
+        if timed_out:
+            self.output.agent_timeout(agent.name, fallback)
+        else:
+            self.output.agent_fallback(agent.name, fallback)
         return fallback, ""
 
     def _run_survey(self, agent_map, player_agents):
