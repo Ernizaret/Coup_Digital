@@ -112,6 +112,11 @@ class GameController:
             for name, (claimed, blockable, needs_target, cost) in ACTION_INFO.items():
                 if cost > p.coins:
                     continue
+                # Steal requires at least one target with coins
+                if name == "Steal" and not any(
+                    t.coins > 0 for t in self.game.get_valid_targets(p)
+                ):
+                    continue
                 available.append(name)
             if p.coins >= 10:
                 available = ["Coup"]

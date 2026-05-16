@@ -6,6 +6,8 @@ from datetime import datetime
 
 STATS_FILE = os.path.join(os.path.dirname(__file__), "winrates.csv")
 GAME_LOG_FILE = os.path.join(os.path.dirname(__file__), "game_log.csv")
+GAME_LOG_2_FILE = os.path.join(os.path.dirname(__file__), "game_log_2.csv")
+GAME_LOG_3_FILE = os.path.join(os.path.dirname(__file__), "game_log_3.csv")
 FIELDNAMES = [
     "model", "history_depth", "rules", "strategy",
     "games_played", "games_won", "win_rate", "elo",
@@ -34,6 +36,32 @@ for _pair in _STAT_PAIRS:
     for _n in range(1, _MAX_PLAYERS + 1):
         for _field in _pair:
             GAME_LOG_FIELDNAMES.append(f"Player {_n} {_field}")
+
+_MODEL_PREFIX_MAP = {
+    "google/": "Gemini",
+    "openai/": "ChatGPT",
+    "x-ai/": "Grok",
+    "anthropic/": "Claude",
+    "mistralai/": "Mistral",
+}
+
+_MODEL_COLUMNS = ["Gemini", "ChatGPT", "Grok", "Claude", "Mistral"]
+_PER_PLAYER_FIELDS = [
+    "Turn Order", "Rules", "Strategy", "Win",
+    "bluffs", "bluffs_caught", "challenges", "challenges_correct",
+    "card_guesses_total", "card_guesses_correct",
+]
+
+GAME_LOG_2_FIELDNAMES = ["Game #", "Seed"]
+for _col_prefix in _MODEL_COLUMNS:
+    for _field in _PER_PLAYER_FIELDS:
+        GAME_LOG_2_FIELDNAMES.append(f"{_col_prefix} {_field}")
+
+GAME_LOG_3_FIELDNAMES = [
+    "Game #", "Seed", "Player", "Turn Order", "Rules", "Strategy", "Win",
+    "bluffs", "bluffs_caught", "challenges", "challenges_correct",
+    "card_guesses_total", "card_guesses_correct",
+]
 
 
 def _make_key(model, history_depth, rules_summary=False, strategy_guide=False):
@@ -166,6 +194,121 @@ def _append_game_log(agents, winner_agent, seed):
         writer.writerow(row)
 
 
+def _append_game_log_2(agents, winner_agent, seed):
+    """Append a single game entry to the per-model game_log_2 CSV."""
+    # Determine the next Game # by reading existing rows.
+    next_game_num = 1
+    if os.path.exists(GAME_LOG_2_FILE):
+        with open(GAME_LOG_2_FILE, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    num = int(row.get("Game #", 0))
+                except (ValueError, TypeError):
+                    num = 0
+                if num >= next_game_num:
+                    next_game_num = num + 1
+
+    # Ensure the file exists and has the correct header.
+    file_exists = os.path.exists(GAME_LOG_2_FILE)
+    with open(GAME_LOG_2_FILE, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=GAME_LOG_2_FIELDNAMES)
+        if not file_exists:
+            writer.writeheader()
+        row = {
+            "Game #": next_game_num,
+            "Seed": seed if seed is not None else "",
+        }
+        for i, agent in enumerate(agents):
+            # Map model to column prefix.
+            col_prefix = None
+            for prefix, name in _MODEL_PREFIX_MAP.items():
+                if agent.model.startswith(prefix):
+                    col_prefix = name
+                    break
+            if col_prefix is None:
+                # Unknown model provider; skip this agent.
+                continue
+            row[f"{col_prefix} Turn Order"] = i + 1
+            row[f"{col_prefix} Rules"] = (
+                1 if getattr(agent, "rules_summary", False) else -1
+            )
+            row[f"{col_prefix} Strategy"] = (
+                1 if getattr(agent, "strategy_guide", False) else -1
+            )
+            row[f"{col_prefix} Win"] = 1 if agent is winner_agent else 0
+            row[f"{col_prefix} bluffs"] = getattr(agent, "bluffs", 0)
+            row[f"{col_prefix} bluffs_caught"] = getattr(
+                agent, "bluffs_caught", 0
+            )
+            row[f"{col_prefix} challenges"] = getattr(
+                agent, "challenges_issued", 0
+            )
+            row[f"{col_prefix} challenges_correct"] = getattr(
+                agent, "challenges_correct", 0
+            )
+            row[f"{col_prefix} card_guesses_total"] = getattr(
+                agent, "card_guesses_total", 0
+            )
+            row[f"{col_prefix} card_guesses_correct"] = getattr(
+                agent, "card_guesses_correct", 0
+            )
+        writer.writerow(row)
+
+
+def _append_game_log_3(agents, winner_agent, seed):
+    """Append one row per player to the per-player game_log_3 CSV."""
+    next_game_num = 1
+    if os.path.exists(GAME_LOG_3_FILE):
+        with open(GAME_LOG_3_FILE, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    num = int(row.get("Game #", 0))
+                except (ValueError, TypeError):
+                    num = 0
+                if num >= next_game_num:
+                    next_game_num = num + 1
+
+    file_exists = os.path.exists(GAME_LOG_3_FILE)
+    with open(GAME_LOG_3_FILE, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=GAME_LOG_3_FIELDNAMES)
+        if not file_exists:
+            writer.writeheader()
+        for i, agent in enumerate(agents):
+            # Map model to friendly name.
+            player_name = None
+            for prefix, name in _MODEL_PREFIX_MAP.items():
+                if agent.model.startswith(prefix):
+                    player_name = name
+                    break
+            if player_name is None:
+                continue
+            writer.writerow({
+                "Game #": next_game_num,
+                "Seed": seed if seed is not None else "",
+                "Player": player_name,
+                "Turn Order": i + 1,
+                "Rules": 1 if getattr(agent, "rules_summary", False) else -1,
+                "Strategy": (
+                    1 if getattr(agent, "strategy_guide", False) else -1
+                ),
+                "Win": 1 if agent is winner_agent else 0,
+                "bluffs": getattr(agent, "bluffs", 0),
+                "bluffs_caught": getattr(agent, "bluffs_caught", 0),
+                "challenges": getattr(agent, "challenges_issued", 0),
+                "challenges_correct": getattr(
+                    agent, "challenges_correct", 0
+                ),
+                "card_guesses_total": getattr(
+                    agent, "card_guesses_total", 0
+                ),
+                "card_guesses_correct": getattr(
+                    agent, "card_guesses_correct", 0
+                ),
+            })
+
+
 def _compute_elo_updates(agent_keys, stats, winner_key):
     """Compute new ELO ratings using pairwise multi-player approach.
 
@@ -273,3 +416,5 @@ def record_game(agents, winner_agent, seed=None):
 
     _save_stats(stats)
     _append_game_log(agents, winner_agent, seed)
+    _append_game_log_2(agents, winner_agent, seed)
+    _append_game_log_3(agents, winner_agent, seed)
