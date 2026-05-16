@@ -165,7 +165,9 @@ class TestRecordGame(unittest.TestCase):
                           history_depth=3),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 stats = _load_stats()
 
@@ -179,8 +181,9 @@ class TestRecordGame(unittest.TestCase):
         finally:
             if os.path.exists(path):
                 os.remove(path)
-            if os.path.exists(log_path):
-                os.remove(log_path)
+            for _lp in (log_path, log_path + ".2", log_path + ".3"):
+                if os.path.exists(_lp):
+                    os.remove(_lp)
 
     def test_accumulates_across_games(self):
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
@@ -199,7 +202,9 @@ class TestRecordGame(unittest.TestCase):
                           history_depth=5),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 # Reset token counts for second game
                 agents[0].prompt_tokens = 10
@@ -218,8 +223,9 @@ class TestRecordGame(unittest.TestCase):
         finally:
             if os.path.exists(path):
                 os.remove(path)
-            if os.path.exists(log_path):
-                os.remove(log_path)
+            for _lp in (log_path, log_path + ".2", log_path + ".3"):
+                if os.path.exists(_lp):
+                    os.remove(_lp)
 
     def test_different_depths_separate_rows(self):
         """Two agents with same model but different history_depth get separate rows."""
@@ -239,7 +245,9 @@ class TestRecordGame(unittest.TestCase):
                           history_depth=3),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 # Reset token counts for second game with different depth
                 agents[0].prompt_tokens = 10
@@ -262,8 +270,9 @@ class TestRecordGame(unittest.TestCase):
         finally:
             if os.path.exists(path):
                 os.remove(path)
-            if os.path.exists(log_path):
-                os.remove(log_path)
+            for _lp in (log_path, log_path + ".2", log_path + ".3"):
+                if os.path.exists(_lp):
+                    os.remove(_lp)
 
 
     def test_same_model_different_depths(self):
@@ -283,7 +292,9 @@ class TestRecordGame(unittest.TestCase):
             ]
             # Agent with depth=3 wins
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[2])
                 stats = _load_stats()
 
@@ -304,8 +315,9 @@ class TestRecordGame(unittest.TestCase):
         finally:
             if os.path.exists(path):
                 os.remove(path)
-            if os.path.exists(log_path):
-                os.remove(log_path)
+            for _lp in (log_path, log_path + ".2", log_path + ".3"):
+                if os.path.exists(_lp):
+                    os.remove(_lp)
 
 
 class TestComputeEloUpdates(unittest.TestCase):
@@ -374,7 +386,9 @@ class TestEloRating(unittest.TestCase):
                 FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 stats = _load_stats()
             # Both should have ELO near 1500 (winner slightly above, loser below)
@@ -383,7 +397,7 @@ class TestEloRating(unittest.TestCase):
                 3000.0, places=5,
             )
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_winner_elo_increases_loser_decreases(self):
         path, log_path = self._make_temp_paths()
@@ -393,13 +407,15 @@ class TestEloRating(unittest.TestCase):
                 FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 stats = _load_stats()
             self.assertGreater(stats["model-a|2|No|No"]["elo"], ELO_START)
             self.assertLess(stats["model-b|2|No|No"]["elo"], ELO_START)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_four_player_pairwise(self):
         """In a 4-player game, losers only lose relative to winner, not each other."""
@@ -412,7 +428,9 @@ class TestEloRating(unittest.TestCase):
                 FakeAgent(model="model-d", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 stats = _load_stats()
             # Winner gains
@@ -425,7 +443,7 @@ class TestEloRating(unittest.TestCase):
             total = stats["model-a|2|No|No"]["elo"] + sum(loser_elos)
             self.assertAlmostEqual(total, 4 * ELO_START, delta=0.5)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_elo_persists_across_games(self):
         path, log_path = self._make_temp_paths()
@@ -435,7 +453,9 @@ class TestEloRating(unittest.TestCase):
                 FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 stats1 = _load_stats()
                 elo_a_after_1 = stats1["model-a|2|No|No"]["elo"]
@@ -451,7 +471,7 @@ class TestEloRating(unittest.TestCase):
             # ELO should have continued from previous value, not reset
             self.assertGreater(stats2["model-a|2|No|No"]["elo"], elo_a_after_1)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_legacy_rows_default_to_1500(self):
         """CSV rows without an elo column should default to 1500."""
@@ -478,7 +498,7 @@ class TestEloRating(unittest.TestCase):
             self.assertAlmostEqual(
                 stats["old-model|2|No|No"]["elo"], ELO_START)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_legacy_rows_without_bluff_columns_default_to_zero(self):
         """CSV rows without bluff/challenge columns should default to 0."""
@@ -507,7 +527,7 @@ class TestEloRating(unittest.TestCase):
             self.assertEqual(stats["old-model|2|No|No"]["challenges_issued"], 0)
             self.assertEqual(stats["old-model|2|No|No"]["challenges_correct"], 0)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
 
 class TestBluffChallengeStats(unittest.TestCase):
@@ -664,7 +684,9 @@ class TestBluffChallengeStats(unittest.TestCase):
                           challenges_issued=4, challenges_correct=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
 
                 # Simulate second game with new per-game counts
@@ -699,7 +721,7 @@ class TestBluffChallengeStats(unittest.TestCase):
             self.assertEqual(stats["model-b|2|No|No"]["challenges_issued"], 7)
             self.assertEqual(stats["model-b|2|No|No"]["challenges_correct"], 3)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_new_columns_in_fieldnames(self):
         """Verify all bluff/challenge columns are in FIELDNAMES."""
@@ -763,7 +785,9 @@ class TestExpandedKeyLogic(unittest.TestCase):
             agents_game2 = [agent_with_rules,
                             FakeAgent(model="other", history_depth=2)]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents_game1, agents_game1[0])
                 record_game(agents_game2, agents_game2[0])
                 stats = _load_stats()
@@ -773,7 +797,7 @@ class TestExpandedKeyLogic(unittest.TestCase):
             self.assertEqual(stats["gpt-4|2|No|No"]["games_played"], 1)
             self.assertEqual(stats["gpt-4|2|Yes|No"]["games_played"], 1)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_different_strategy_produce_separate_rows(self):
         """Same model+depth but different strategy_guide should produce separate rows."""
@@ -788,7 +812,9 @@ class TestExpandedKeyLogic(unittest.TestCase):
             agents_game2 = [agent_with_strat,
                             FakeAgent(model="other", history_depth=2)]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents_game1, agents_game1[0])
                 record_game(agents_game2, agents_game2[0])
                 stats = _load_stats()
@@ -798,7 +824,7 @@ class TestExpandedKeyLogic(unittest.TestCase):
             self.assertEqual(stats["gpt-4|2|No|No"]["games_played"], 1)
             self.assertEqual(stats["gpt-4|2|No|Yes"]["games_played"], 1)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_all_four_combos_separate_rows(self):
         """All four (rules, strategy) combos for same model+depth produce separate rows."""
@@ -811,7 +837,9 @@ class TestExpandedKeyLogic(unittest.TestCase):
                 (True, True),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 for rules, strategy in combos:
                     agents = [
                         FakeAgent(model="gpt-4", history_depth=2,
@@ -830,7 +858,7 @@ class TestExpandedKeyLogic(unittest.TestCase):
                 self.assertEqual(stats[key]["games_played"], 1)
                 self.assertEqual(stats[key]["games_won"], 1)
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_rules_strategy_round_trip(self):
         """rules and strategy values survive save then load."""
@@ -893,7 +921,9 @@ class TestExpandedKeyLogic(unittest.TestCase):
                 FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0], seed=42)
             with open(log_path, newline="") as f:
                 reader = csv.DictReader(f)
@@ -903,7 +933,7 @@ class TestExpandedKeyLogic(unittest.TestCase):
             self.assertIn("rules=No", row["Player 2"])
             self.assertIn("strategy=No", row["Player 2"])
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_game_log_records_no_rules_no_strategy(self):
         """game_log.csv should record No when rules/strategy are disabled."""
@@ -915,7 +945,9 @@ class TestExpandedKeyLogic(unittest.TestCase):
                 FakeAgent(model="model-b", history_depth=2),
             ]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0], seed=99)
             with open(log_path, newline="") as f:
                 reader = csv.DictReader(f)
@@ -923,7 +955,7 @@ class TestExpandedKeyLogic(unittest.TestCase):
             self.assertIn("rules=No", row["Player 1"])
             self.assertIn("strategy=No", row["Player 1"])
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
 
     def test_agent_without_rules_strategy_defaults_to_false(self):
         """Agents missing rules_summary/strategy_guide attrs default to No."""
@@ -935,7 +967,9 @@ class TestExpandedKeyLogic(unittest.TestCase):
             del agent.strategy_guide
             agents = [agent, FakeAgent(model="model-b", history_depth=2)]
             with patch("AI_game.stats.STATS_FILE", path), \
-                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log_path + ".2"), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log_path + ".3"):
                 record_game(agents, agents[0])
                 stats = _load_stats()
             # Should default to No|No
@@ -943,7 +977,215 @@ class TestExpandedKeyLogic(unittest.TestCase):
             self.assertEqual(stats["model-a|2|No|No"]["rules"], "No")
             self.assertEqual(stats["model-a|2|No|No"]["strategy"], "No")
         finally:
-            self._cleanup(path, log_path)
+            self._cleanup(path, log_path, log_path + ".2", log_path + ".3")
+
+
+class TestGameLog2(unittest.TestCase):
+    """Tests for _append_game_log_2 per-model wide-format CSV."""
+
+    def _make_temp_paths(self):
+        f1 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f2 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f3 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f4 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        paths = (f1.name, f2.name, f3.name, f4.name)
+        for f in (f1, f2, f3, f4):
+            f.close()
+        for p in paths:
+            os.remove(p)
+        return paths
+
+    def _cleanup(self, *paths):
+        for p in paths:
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_writes_per_model_columns(self):
+        """game_log_2 should populate model-prefixed columns."""
+        stats_path, log_path, log2_path, log3_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="google/gemini-2.0-flash", history_depth=10,
+                          rules_summary=True, strategy_guide=False,
+                          bluffs=2, bluffs_caught=1,
+                          challenges_issued=3, challenges_correct=2),
+                FakeAgent(model="openai/gpt-4o", history_depth=10,
+                          rules_summary=False, strategy_guide=True,
+                          bluffs=1, bluffs_caught=0,
+                          challenges_issued=1, challenges_correct=1),
+            ]
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path):
+                record_game(agents, agents[0], seed=42)
+            with open(log2_path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            self.assertEqual(row["Game #"], "1")
+            self.assertEqual(row["Seed"], "42")
+            self.assertEqual(row["Gemini Turn Order"], "1")
+            self.assertEqual(row["Gemini Rules"], "1")
+            self.assertEqual(row["Gemini Strategy"], "-1")
+            self.assertEqual(row["Gemini Win"], "1")
+            self.assertEqual(row["Gemini bluffs"], "2")
+            self.assertEqual(row["Gemini bluffs_caught"], "1")
+            self.assertEqual(row["ChatGPT Turn Order"], "2")
+            self.assertEqual(row["ChatGPT Win"], "0")
+            self.assertEqual(row["ChatGPT Strategy"], "1")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path)
+
+    def test_increments_game_number(self):
+        """Successive games should increment Game #."""
+        stats_path, log_path, log2_path, log3_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="google/gemini-2.0-flash", history_depth=10),
+                FakeAgent(model="openai/gpt-4o", history_depth=10),
+            ]
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path):
+                record_game(agents, agents[0], seed=1)
+                record_game(agents, agents[1], seed=2)
+            with open(log2_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(rows[0]["Game #"], "1")
+            self.assertEqual(rows[1]["Game #"], "2")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path)
+
+    def test_skips_unknown_model_prefix(self):
+        """Agents with unrecognized model prefix should be skipped."""
+        stats_path, log_path, log2_path, log3_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="unknown/model-x", history_depth=10),
+                FakeAgent(model="google/gemini-2.0-flash", history_depth=10),
+            ]
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path):
+                record_game(agents, agents[1], seed=5)
+            with open(log2_path, newline="") as f:
+                row = next(csv.DictReader(f))
+            # Gemini should be populated, unknown model columns empty
+            self.assertEqual(row["Gemini Turn Order"], "2")
+            self.assertEqual(row["Gemini Win"], "1")
+            self.assertEqual(row["ChatGPT Turn Order"], "")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path)
+
+
+class TestGameLog3(unittest.TestCase):
+    """Tests for _append_game_log_3 per-player long-format CSV."""
+
+    def _make_temp_paths(self):
+        f1 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f2 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f3 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f4 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        paths = (f1.name, f2.name, f3.name, f4.name)
+        for f in (f1, f2, f3, f4):
+            f.close()
+        for p in paths:
+            os.remove(p)
+        return paths
+
+    def _cleanup(self, *paths):
+        for p in paths:
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_writes_one_row_per_player(self):
+        """game_log_3 should produce one row per recognized player."""
+        stats_path, log_path, log2_path, log3_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="google/gemini-2.0-flash", history_depth=10,
+                          rules_summary=True, strategy_guide=False,
+                          bluffs=3, bluffs_caught=1,
+                          challenges_issued=2, challenges_correct=1),
+                FakeAgent(model="openai/gpt-4o", history_depth=10,
+                          rules_summary=False, strategy_guide=True,
+                          bluffs=0, bluffs_caught=0,
+                          challenges_issued=1, challenges_correct=0),
+                FakeAgent(model="x-ai/grok-3", history_depth=10),
+            ]
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path):
+                record_game(agents, agents[0], seed=7)
+            with open(log3_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 3)
+            # All share same Game #
+            self.assertTrue(all(r["Game #"] == "1" for r in rows))
+            # Check player names and turn order
+            self.assertEqual(rows[0]["Player"], "Gemini")
+            self.assertEqual(rows[0]["Turn Order"], "1")
+            self.assertEqual(rows[0]["Win"], "1")
+            self.assertEqual(rows[0]["Rules"], "1")
+            self.assertEqual(rows[0]["bluffs"], "3")
+            self.assertEqual(rows[1]["Player"], "ChatGPT")
+            self.assertEqual(rows[1]["Turn Order"], "2")
+            self.assertEqual(rows[1]["Win"], "0")
+            self.assertEqual(rows[1]["Strategy"], "1")
+            self.assertEqual(rows[2]["Player"], "Grok")
+            self.assertEqual(rows[2]["Turn Order"], "3")
+            self.assertEqual(rows[2]["Win"], "0")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path)
+
+    def test_skips_unknown_model(self):
+        """Agents with unrecognized model prefix produce no row."""
+        stats_path, log_path, log2_path, log3_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="unknown/model-x", history_depth=10),
+                FakeAgent(model="google/gemini-2.0-flash", history_depth=10),
+            ]
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path):
+                record_game(agents, agents[1], seed=9)
+            with open(log3_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            # Only Gemini row, unknown skipped
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["Player"], "Gemini")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path)
+
+    def test_mistral_model_recognized(self):
+        """Mistral models should be correctly mapped to 'Mistral' player."""
+        stats_path, log_path, log2_path, log3_path = self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(model="mistralai/mistral-nemo", history_depth=10,
+                          bluffs=1, challenges_issued=2),
+                FakeAgent(model="google/gemini-2.0-flash", history_depth=10),
+            ]
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path):
+                record_game(agents, agents[0], seed=11)
+            with open(log3_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["Player"], "Mistral")
+            self.assertEqual(rows[0]["Win"], "1")
+            self.assertEqual(rows[0]["bluffs"], "1")
+            self.assertEqual(rows[1]["Player"], "Gemini")
+            self.assertEqual(rows[1]["Win"], "0")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path)
 
 
 if __name__ == "__main__":

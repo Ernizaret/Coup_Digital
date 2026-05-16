@@ -1,0 +1,9 @@
+Game #,Seed,Player,Turn Order,Rules,Strategy,Win,bluffs,bluffs_caught,challenges,challenges_correct,card_guesses_total,card_guesses_correct
+1,1100562081,Grok,1,1,-1,1,1,1,1,1,2,0
+1,1100562081,Claude,2,1,-1,-1,1,1,1,0,0,0
+1,1100562081,Gemini,3,1,-1,-1,1,1,4,3,1,0
+1,1100562081,ChatGPT,4,1,-1,-1,1,0,1,0,0,0
+2,1624691426,ChatGPT,1,1,-1,-1,0,0,2,1,7,4
+2,1624691426,Grok,2,1,-1,1,0,0,0,0,8,4
+2,1624691426,Gemini,3,1,-1,-1,0,0,2,0,0,0
+2,1624691426,Claude,4,1,-1,-1,1,0,1,0,7,4
