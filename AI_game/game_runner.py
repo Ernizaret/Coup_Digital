@@ -168,7 +168,9 @@ class GameRunner:
 
     def _track_bluff_challenge_events(self, state_before, action, player,
                                        agent, log_cursor_before,
-                                       player_agents):
+                                       player_agents,
+                                       acting_player_before=None,
+                                       blocker_before=None):
         """Detect and record bluff/challenge events after a handle_input call.
 
         Inspects controller state and new log entries to determine:
@@ -177,13 +179,21 @@ class GameRunner:
         - Challenges issued (responding "Yes" to a challenge query)
         - Challenge outcomes (successful challenges update bluffs_caught
           and challenges_correct)
+
+        acting_player_before and blocker_before are snapshots captured before
+        handle_input, since auto-lose may call _advance_turn() within the same
+        handle_input call, changing ctrl.current_player/ctrl.blocker.
         """
         ctrl = self.controller
+        if acting_player_before is None:
+            acting_player_before = ctrl.current_player
+        if blocker_before is None:
+            blocker_before = ctrl.blocker
 
         # --- Action bluff detection ---
         # When a player chose an action with a claimed card they don't hold
         if state_before == State.CHOOSE_ACTION and ctrl.pending_claimed_card:
-            acting = ctrl.current_player
+            acting = acting_player_before
             if not acting.has_influence(ctrl.pending_claimed_card):
                 acting_agent = player_agents.get(acting)
                 if acting_agent:
@@ -215,7 +225,7 @@ class GameRunner:
             # "<challenger> challenges -- <actor> does NOT have <card>! Challenge succeeds!"
             if "Challenge succeeds!" in entry:
                 # The acting player was bluffing and got caught
-                acting_agent = player_agents.get(ctrl.current_player)
+                acting_agent = player_agents.get(acting_player_before)
                 if acting_agent:
                     acting_agent.bluffs_caught += 1
                 # The challenger was correct -- find who challenged
@@ -228,8 +238,8 @@ class GameRunner:
             # "<challenger> challenges the block -- <blocker> does NOT have <card>! Block fails!"
             if "Block fails!" in entry:
                 # The blocker was bluffing and got caught
-                blocker = ctrl.blocker
-                blocker_agent = player_agents.get(blocker) if blocker else None
+                blocker_agent = (player_agents.get(blocker_before)
+                                 if blocker_before else None)
                 if blocker_agent:
                     blocker_agent.bluffs_caught += 1
                 # The challenger was correct
@@ -316,6 +326,8 @@ class GameRunner:
             # Capture state before handle_input for bluff/challenge tracking
             state_before = self.controller.state
             log_cursor_before = len(self.controller.log)
+            acting_player_before = self.controller.current_player
+            blocker_before = self.controller.blocker
 
             # Execute the action
             self.controller.handle_input(action, player)
@@ -324,6 +336,7 @@ class GameRunner:
             self._track_bluff_challenge_events(
                 state_before, action, player, agent,
                 log_cursor_before, player_agents,
+                acting_player_before, blocker_before,
             )
 
             self._consume_log()
