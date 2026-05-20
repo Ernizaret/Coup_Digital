@@ -6,4 +6,5 @@ AI_game/AI_game_design.md
 AI_game/logs/*.md
 AI_game/game_log.csv
 AI_game/winrates.csv
-AI_game/Input_games_example.*
+AI_game/game_log_2.csv
+AI_game/game_log_3.csv*

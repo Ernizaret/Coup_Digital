@@ -323,7 +323,7 @@ class TestSurveyPromptBuilder(unittest.TestCase):
         sections = build_survey_prompt_sections(
             self.ctrl, self.player, self.event_log, rules_summary=True
         )
-        self.assertIn("RULES REFERENCE", sections["rules_summary"])
+        self.assertIn("Be conservative with your challenges", sections["rules_summary"])
 
     def test_rules_summary_empty_when_disabled(self):
         sections = build_survey_prompt_sections(

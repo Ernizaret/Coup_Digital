@@ -555,6 +555,116 @@ class TestChallengeOutcomes(unittest.TestCase):
         self.assertEqual(agent_bob.bluffs_caught, 0)
 
 
+class TestChallengeAutoLoseAttribution(unittest.TestCase):
+    """Verify bluffs_caught is attributed correctly when the challenged player
+    has only 1 card left and auto-loses, causing _advance_turn() to change
+    current_player within the same handle_input() call (issue #45)."""
+
+    def test_bluffs_caught_attributed_after_auto_lose(self):
+        """When a 1-card player bluffs and is challenged, bluffs_caught goes
+        to the correct player even though current_player changes."""
+        runner, agents = _make_runner(("Alice", "Bob", "Charlie"))
+        ctrl = runner.controller
+        player_agents = _get_player_agents(runner)
+
+        alice = ctrl.game.players[0]
+        bob = ctrl.game.players[1]
+        charlie = ctrl.game.players[2]
+
+        # Alice has only 1 card and it's NOT Duke -- Tax is a bluff
+        alice.influence = ["Captain"]
+
+        agent_alice = player_agents[alice]
+        agent_bob = player_agents[bob]
+
+        # Alice chooses Tax (bluff) -- snapshot state before
+        state_before = State.CHOOSE_ACTION
+        log_cursor_before = len(ctrl.log)
+        acting_player_before = ctrl.current_player
+        ctrl.handle_input("Tax")
+        runner._track_bluff_challenge_events(
+            state_before, "Tax", alice, agent_alice,
+            log_cursor_before, player_agents,
+            acting_player_before=acting_player_before,
+        )
+        self.assertEqual(agent_alice.bluffs, 1)
+
+        # Bob challenges -- Alice has 1 card so she auto-loses,
+        # _advance_turn() fires, changing current_player away from Alice
+        self.assertEqual(ctrl.state, State.CHALLENGE_QUERY)
+        state_before = State.CHALLENGE_QUERY
+        log_cursor_before = len(ctrl.log)
+        acting_player_before = ctrl.current_player
+        blocker_before = ctrl.blocker
+
+        ctrl.handle_input("Yes", bob)
+
+        # current_player should have changed (advanced past eliminated Alice)
+        self.assertNotEqual(ctrl.current_player, alice)
+
+        runner._track_bluff_challenge_events(
+            state_before, "Yes", bob, agent_bob,
+            log_cursor_before, player_agents,
+            acting_player_before=acting_player_before,
+            blocker_before=blocker_before,
+        )
+
+        # Alice was caught bluffing (attributed correctly despite turn advance)
+        self.assertEqual(agent_alice.bluffs_caught, 1)
+        self.assertEqual(agent_bob.challenges_issued, 1)
+        self.assertEqual(agent_bob.challenges_correct, 1)
+
+    def test_block_bluffs_caught_attributed_after_auto_lose(self):
+        """When a 1-card blocker bluffs a block and is challenged,
+        bluffs_caught goes to the blocker even if ctrl.blocker changes."""
+        runner, agents = _make_runner(("Alice", "Bob", "Charlie"))
+        ctrl = runner.controller
+        player_agents = _get_player_agents(runner)
+
+        alice = ctrl.game.players[0]
+        bob = ctrl.game.players[1]
+
+        # Bob has only 1 card and it's NOT Duke -- block is a bluff
+        bob.influence = ["Captain"]
+
+        agent_alice = player_agents[alice]
+        agent_bob = player_agents[bob]
+
+        # Alice does Foreign Aid
+        ctrl.handle_input("Foreign Aid")
+
+        # Bob blocks with Duke (bluff, he only has Captain)
+        state_before = State.BLOCK_QUERY
+        log_cursor_before = len(ctrl.log)
+        ctrl.handle_input("Block with Duke", bob)
+        runner._track_bluff_challenge_events(
+            state_before, "Block with Duke", bob, agent_bob,
+            log_cursor_before, player_agents,
+        )
+        self.assertEqual(agent_bob.bluffs, 1)
+
+        # Alice challenges the block -- Bob auto-loses his last card
+        self.assertEqual(ctrl.state, State.CHALLENGE_BLOCK_QUERY)
+        state_before = State.CHALLENGE_BLOCK_QUERY
+        log_cursor_before = len(ctrl.log)
+        acting_player_before = ctrl.current_player
+        blocker_before = ctrl.blocker
+
+        ctrl.handle_input("Yes", alice)
+
+        runner._track_bluff_challenge_events(
+            state_before, "Yes", alice, agent_alice,
+            log_cursor_before, player_agents,
+            acting_player_before=acting_player_before,
+            blocker_before=blocker_before,
+        )
+
+        # Bob's bluff was caught (attributed correctly despite auto-lose)
+        self.assertEqual(agent_bob.bluffs_caught, 1)
+        self.assertEqual(agent_alice.challenges_issued, 1)
+        self.assertEqual(agent_alice.challenges_correct, 1)
+
+
 class TestSmartDefault(unittest.TestCase):
     """Unit tests for the smart_default() fallback picker."""
 
