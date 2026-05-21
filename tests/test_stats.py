@@ -9,6 +9,7 @@ from unittest.mock import patch
 from AI_game.stats import (
     _make_key, _load_stats, _save_stats, record_game, FIELDNAMES,
     _compute_elo_updates, ELO_START, ELO_K,
+    _append_points_csv, POINTS_FIELDNAMES, _MAX_TURNS,
 )
 
 
@@ -1186,6 +1187,190 @@ class TestGameLog3(unittest.TestCase):
             self.assertEqual(rows[1]["Win"], "0")
         finally:
             self._cleanup(stats_path, log_path, log2_path, log3_path)
+
+
+class TestPointsCsv(unittest.TestCase):
+    """Tests for _append_points_csv and POINTS_FIELDNAMES."""
+
+    def _make_temp_paths(self):
+        f1 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f2 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f3 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f4 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f5 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        paths = (f1.name, f2.name, f3.name, f4.name, f5.name)
+        for f in (f1, f2, f3, f4, f5):
+            f.close()
+        for p in paths:
+            os.remove(p)
+        return paths
+
+    def _cleanup(self, *paths):
+        for p in paths:
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_fieldnames_has_30_turn_columns(self):
+        """POINTS_FIELDNAMES should have Game #, Seed, Player + 30 Turn columns."""
+        self.assertEqual(POINTS_FIELDNAMES[0], "Game #")
+        self.assertEqual(POINTS_FIELDNAMES[1], "Seed")
+        self.assertEqual(POINTS_FIELDNAMES[2], "Player")
+        self.assertEqual(len(POINTS_FIELDNAMES), 3 + _MAX_TURNS)
+        self.assertEqual(POINTS_FIELDNAMES[3], "Turn 1")
+        self.assertEqual(POINTS_FIELDNAMES[-1], f"Turn {_MAX_TURNS}")
+
+    def test_writes_rows_for_recognized_models(self):
+        """Each recognized agent gets one row with correct turn data."""
+        stats_path, log_path, log2_path, log3_path, pts_path = \
+            self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(name="Alice", model="google/gemini-2.0-flash"),
+                FakeAgent(name="Bob", model="openai/gpt-4o"),
+            ]
+            points_data = {
+                "Alice": [16, 16, 19, 12],
+                "Bob": [16, 9, 9, 0],
+            }
+            with patch("AI_game.stats.POINTS_FILE", pts_path):
+                _append_points_csv(agents, 42, points_data)
+            with open(pts_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["Game #"], "1")
+            self.assertEqual(rows[0]["Seed"], "42")
+            self.assertEqual(rows[0]["Player"], "Gemini")
+            self.assertEqual(rows[0]["Turn 1"], "16")
+            self.assertEqual(rows[0]["Turn 4"], "12")
+            self.assertEqual(rows[0]["Turn 5"], "")
+            self.assertEqual(rows[1]["Player"], "ChatGPT")
+            self.assertEqual(rows[1]["Turn 4"], "0")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path, pts_path)
+
+    def test_increments_game_number(self):
+        """Successive calls should increment Game #."""
+        stats_path, log_path, log2_path, log3_path, pts_path = \
+            self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(name="A", model="google/gemini-2.0-flash"),
+            ]
+            with patch("AI_game.stats.POINTS_FILE", pts_path):
+                _append_points_csv(agents, 1, {"A": [10]})
+                _append_points_csv(agents, 2, {"A": [20]})
+            with open(pts_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(rows[0]["Game #"], "1")
+            self.assertEqual(rows[1]["Game #"], "2")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path, pts_path)
+
+    def test_skips_unknown_model(self):
+        """Agents with unrecognized model prefix produce no row."""
+        stats_path, log_path, log2_path, log3_path, pts_path = \
+            self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(name="X", model="unknown/model"),
+                FakeAgent(name="G", model="google/gemini"),
+            ]
+            with patch("AI_game.stats.POINTS_FILE", pts_path):
+                _append_points_csv(agents, 5, {"X": [10], "G": [14]})
+            with open(pts_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["Player"], "Gemini")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path, pts_path)
+
+    def test_extra_turns_beyond_max_ignored(self):
+        """Turn values beyond _MAX_TURNS should be silently ignored."""
+        stats_path, log_path, log2_path, log3_path, pts_path = \
+            self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(name="A", model="google/gemini"),
+            ]
+            # Generate more data than _MAX_TURNS
+            long_data = list(range(1, _MAX_TURNS + 10))
+            with patch("AI_game.stats.POINTS_FILE", pts_path):
+                _append_points_csv(agents, 1, {"A": long_data})
+            with open(pts_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 1)
+            # Last column should be value at index _MAX_TURNS - 1
+            self.assertEqual(rows[0][f"Turn {_MAX_TURNS}"],
+                             str(_MAX_TURNS))
+            # No extra columns
+            self.assertEqual(len(rows[0]), len(POINTS_FIELDNAMES))
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path, pts_path)
+
+    def test_short_game_leaves_blanks(self):
+        """Games shorter than _MAX_TURNS leave remaining columns blank."""
+        stats_path, log_path, log2_path, log3_path, pts_path = \
+            self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(name="A", model="google/gemini"),
+            ]
+            with patch("AI_game.stats.POINTS_FILE", pts_path):
+                _append_points_csv(agents, 1, {"A": [16, 9]})
+            with open(pts_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(rows[0]["Turn 1"], "16")
+            self.assertEqual(rows[0]["Turn 2"], "9")
+            self.assertEqual(rows[0]["Turn 3"], "")
+            self.assertEqual(rows[0][f"Turn {_MAX_TURNS}"], "")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path, pts_path)
+
+    def test_record_game_calls_append_points(self):
+        """record_game with points_data should write points.csv rows."""
+        stats_path, log_path, log2_path, log3_path, pts_path = \
+            self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(name="A", model="google/gemini-2.0-flash"),
+                FakeAgent(name="B", model="openai/gpt-4o"),
+            ]
+            points_data = {"A": [16, 14], "B": [16, 7]}
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path), \
+                 patch("AI_game.stats.POINTS_FILE", pts_path):
+                record_game(agents, agents[0], seed=99,
+                            points_data=points_data)
+            with open(pts_path, newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["Player"], "Gemini")
+            self.assertEqual(rows[0]["Turn 1"], "16")
+            self.assertEqual(rows[1]["Player"], "ChatGPT")
+            self.assertEqual(rows[1]["Turn 2"], "7")
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path, pts_path)
+
+    def test_record_game_without_points_data_skips(self):
+        """record_game without points_data should not create points.csv."""
+        stats_path, log_path, log2_path, log3_path, pts_path = \
+            self._make_temp_paths()
+        try:
+            agents = [
+                FakeAgent(name="A", model="google/gemini-2.0-flash"),
+                FakeAgent(name="B", model="openai/gpt-4o"),
+            ]
+            with patch("AI_game.stats.STATS_FILE", stats_path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path), \
+                 patch("AI_game.stats.GAME_LOG_2_FILE", log2_path), \
+                 patch("AI_game.stats.GAME_LOG_3_FILE", log3_path), \
+                 patch("AI_game.stats.POINTS_FILE", pts_path):
+                record_game(agents, agents[0], seed=1)
+            self.assertFalse(os.path.exists(pts_path))
+        finally:
+            self._cleanup(stats_path, log_path, log2_path, log3_path, pts_path)
 
 
 if __name__ == "__main__":
