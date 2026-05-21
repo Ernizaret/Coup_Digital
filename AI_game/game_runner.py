@@ -127,6 +127,8 @@ class GameRunner:
             agent.challenges_correct = 0
             agent.card_guesses_total = 0
             agent.card_guesses_correct = 0
+            agent.cards_guessed = 0
+            agent.cards_guessed_correct = 0
 
     def _apply_preset(self):
         """Override game state with a preset's custom starting conditions.
@@ -466,7 +468,12 @@ class GameRunner:
                 if opp_guesses is None:
                     # Agent didn't provide a guess for this opponent --
                     # count as all wrong
-                    agent.card_guesses_total += len(opp.influence)
+                    total = len(opp.influence)
+                    agent.card_guesses_total += total
+                    # Attribute inverse stats on the target
+                    opp_agent = player_agents.get(opp)
+                    if opp_agent:
+                        opp_agent.cards_guessed += total
                     continue
 
                 correct, total = score_card_guesses(
@@ -474,6 +481,11 @@ class GameRunner:
                 )
                 agent.card_guesses_total += total
                 agent.card_guesses_correct += correct
+                # Attribute inverse stats on the target
+                opp_agent = player_agents.get(opp)
+                if opp_agent:
+                    opp_agent.cards_guessed += total
+                    opp_agent.cards_guessed_correct += correct
 
     def _snapshot_points(self):
         """Record current points for all players after a turn resolves.

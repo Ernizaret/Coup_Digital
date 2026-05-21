@@ -61,6 +61,8 @@ class FakeAgent:
         self.challenges_correct = 0
         self.card_guesses_total = 0
         self.card_guesses_correct = 0
+        self.cards_guessed = 0
+        self.cards_guessed_correct = 0
         self._survey_response = '{}'
 
     def query_structured(self, prompt_sections):
@@ -706,6 +708,306 @@ class TestCardGuessStatsCSV(unittest.TestCase):
                 stats = _load_stats()
             self.assertEqual(stats["old-model|2|No|No"]["card_guesses_total"], 0)
             self.assertEqual(stats["old-model|2|No|No"]["card_guesses_correct"], 0)
+        finally:
+            self._cleanup(path, log_path)
+
+
+# ===========================================================================
+# Concealment Stats (cards_guessed / cards_guessed_correct)
+# ===========================================================================
+
+class TestConcealmentCounters(unittest.TestCase):
+    """Test inverse survey stats attributed to the target player."""
+
+    def test_counters_reset_on_setup(self):
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        agents[0].cards_guessed = 10
+        agents[0].cards_guessed_correct = 5
+        runner = GameRunner(agents, quiet=True, log=False, survey_interval=0)
+        runner._setup_game()
+        self.assertEqual(agents[0].cards_guessed, 0)
+        self.assertEqual(agents[0].cards_guessed_correct, 0)
+
+    def test_run_survey_attributes_inverse_stats(self):
+        """Verify _run_survey credits cards_guessed on the target player."""
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        runner = GameRunner(agents, quiet=True, log=False, survey_interval=0)
+        runner._setup_game()
+
+        ctrl = runner.controller
+        alice_player = ctrl.game.players[0]
+        bob_player = ctrl.game.players[1]
+
+        alice_player.influence = ["Duke", "Captain"]
+        bob_player.influence = ["Assassin", "Contessa"]
+
+        agent_map = runner._build_agent_map()
+        player_agents = runner._build_player_agent_map()
+
+        # Alice guesses Bob has Assassin and Duke (1 correct out of 2)
+        agents[0]._survey_response = json.dumps({
+            "guesses": {"Bob": ["Assassin", "Duke"]}
+        })
+        # Bob guesses Alice has Duke and Captain (2 correct out of 2)
+        agents[1]._survey_response = json.dumps({
+            "guesses": {"Alice": ["Duke", "Captain"]}
+        })
+
+        runner._run_survey(agent_map, player_agents)
+
+        # Bob was guessed by Alice: 2 total, 1 correct
+        self.assertEqual(agents[1].cards_guessed, 2)
+        self.assertEqual(agents[1].cards_guessed_correct, 1)
+
+        # Alice was guessed by Bob: 2 total, 2 correct
+        self.assertEqual(agents[0].cards_guessed, 2)
+        self.assertEqual(agents[0].cards_guessed_correct, 2)
+
+    def test_missing_guess_counts_as_cards_guessed_only(self):
+        """If guesser skips a target, target gets cards_guessed but 0 correct."""
+        agents = [FakeAgent("Alice"), FakeAgent("Bob"), FakeAgent("Carol")]
+        runner = GameRunner(agents, quiet=True, log=False, survey_interval=0)
+        runner._setup_game()
+
+        ctrl = runner.controller
+        ctrl.game.players[0].influence = ["Duke", "Captain"]
+        ctrl.game.players[1].influence = ["Assassin", "Contessa"]
+        ctrl.game.players[2].influence = ["Ambassador", "Duke"]
+
+        agent_map = runner._build_agent_map()
+        player_agents = runner._build_player_agent_map()
+
+        # Alice only guesses Bob, not Carol
+        agents[0]._survey_response = json.dumps({
+            "guesses": {"Bob": ["Assassin", "Contessa"]}
+        })
+        # Bob and Carol don't guess anyone
+        agents[1]._survey_response = '{}'
+        agents[2]._survey_response = '{}'
+
+        runner._run_survey(agent_map, player_agents)
+
+        # Bob was guessed by Alice (2 correct) + Carol's empty (2 wrong) = 4 total, 2 correct
+        self.assertEqual(agents[1].cards_guessed, 4)
+        self.assertEqual(agents[1].cards_guessed_correct, 2)
+
+        # Carol was skipped by Alice (2 wrong) + Bob's empty (2 wrong) = 4 total, 0 correct
+        self.assertEqual(agents[2].cards_guessed, 4)
+        self.assertEqual(agents[2].cards_guessed_correct, 0)
+
+    def test_inverse_stats_accumulate_across_surveys(self):
+        """Concealment stats accumulate over multiple survey rounds."""
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        runner = GameRunner(agents, quiet=True, log=False, survey_interval=0)
+        runner._setup_game()
+
+        ctrl = runner.controller
+        ctrl.game.players[0].influence = ["Duke", "Captain"]
+        ctrl.game.players[1].influence = ["Assassin", "Contessa"]
+
+        agent_map = runner._build_agent_map()
+        player_agents = runner._build_player_agent_map()
+
+        # First survey
+        agents[0]._survey_response = json.dumps({
+            "guesses": {"Bob": ["Assassin", "Duke"]}
+        })
+        agents[1]._survey_response = json.dumps({
+            "guesses": {"Alice": ["Duke", "Captain"]}
+        })
+        runner._run_survey(agent_map, player_agents)
+
+        # Second survey
+        agents[0]._survey_response = json.dumps({
+            "guesses": {"Bob": ["Assassin", "Contessa"]}
+        })
+        agents[1]._survey_response = json.dumps({
+            "guesses": {"Alice": ["Assassin", "Contessa"]}
+        })
+        runner._run_survey(agent_map, player_agents)
+
+        # Bob was guessed: survey1=2 total, 1 correct; survey2=2 total, 2 correct
+        self.assertEqual(agents[1].cards_guessed, 4)
+        self.assertEqual(agents[1].cards_guessed_correct, 3)
+
+        # Alice was guessed: survey1=2 total, 2 correct; survey2=2 total, 0 correct
+        self.assertEqual(agents[0].cards_guessed, 4)
+        self.assertEqual(agents[0].cards_guessed_correct, 2)
+
+
+class TestConcealmentStatsCSV(unittest.TestCase):
+    """Test concealment stats persistence in CSV."""
+
+    def _cleanup(self, *paths):
+        for p in paths:
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_new_columns_in_fieldnames(self):
+        """Verify concealment columns are in FIELDNAMES."""
+        self.assertIn("cards_guessed", FIELDNAMES)
+        self.assertIn("cards_guessed_correct", FIELDNAMES)
+        self.assertIn("cards_guessed_accuracy", FIELDNAMES)
+
+    def test_cards_guessed_accuracy_calculated_on_save(self):
+        """cards_guessed_accuracy = cards_guessed_correct / cards_guessed."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2|No|No": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                    "card_guesses_total": 0, "card_guesses_correct": 0,
+                    "cards_guessed": 20, "cards_guessed_correct": 12,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            # 12 / 20 = 0.60
+            self.assertEqual(row["cards_guessed_accuracy"], "0.6000")
+        finally:
+            os.remove(path)
+
+    def test_cards_guessed_accuracy_zero_when_no_guesses(self):
+        """cards_guessed_accuracy should be 0.0 when cards_guessed == 0."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2|No|No": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                    "card_guesses_total": 0, "card_guesses_correct": 0,
+                    "cards_guessed": 0, "cards_guessed_correct": 0,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            self.assertEqual(row["cards_guessed_accuracy"], "0.0000")
+        finally:
+            os.remove(path)
+
+    def test_cards_guessed_stats_round_trip(self):
+        """Concealment counters survive save then load."""
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            path = f.name
+        try:
+            stats = {
+                "model-a|2|No|No": {
+                    "model": "model-a", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "total_tokens": 0, "cached_tokens": 0, "total_queries": 0,
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "challenges_issued": 0, "challenges_correct": 0,
+                    "card_guesses_total": 0, "card_guesses_correct": 0,
+                    "cards_guessed": 25, "cards_guessed_correct": 10,
+                },
+            }
+            with patch("AI_game.stats.STATS_FILE", path):
+                _save_stats(stats)
+                loaded = _load_stats()
+            self.assertEqual(loaded["model-a|2|No|No"]["cards_guessed"], 25)
+            self.assertEqual(loaded["model-a|2|No|No"]["cards_guessed_correct"], 10)
+        finally:
+            os.remove(path)
+
+    def test_record_game_accumulates_concealment_stats(self):
+        """record_game should accumulate concealment counters across games."""
+        f1 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f2 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        path, log_path = f1.name, f2.name
+        f1.close()
+        f2.close()
+        try:
+            agents = [
+                FakeAgent(model="model-a", history_depth=2),
+                FakeAgent(model="model-b", history_depth=2),
+            ]
+            agents[0].cards_guessed = 8
+            agents[0].cards_guessed_correct = 3
+            agents[1].cards_guessed = 8
+            agents[1].cards_guessed_correct = 6
+
+            with patch("AI_game.stats.STATS_FILE", path), \
+                 patch("AI_game.stats.GAME_LOG_FILE", log_path):
+                record_game(agents, agents[0])
+
+                # Second game
+                agents[0].prompt_tokens = 0
+                agents[0].completion_tokens = 0
+                agents[0].query_count = 0
+                agents[0].cards_guessed = 6
+                agents[0].cards_guessed_correct = 2
+                agents[1].prompt_tokens = 0
+                agents[1].completion_tokens = 0
+                agents[1].query_count = 0
+                agents[1].cards_guessed = 6
+                agents[1].cards_guessed_correct = 4
+
+                record_game(agents, agents[1])
+                stats = _load_stats()
+
+            # model-a: 8+6=14 total, 3+2=5 correct
+            self.assertEqual(stats["model-a|2|No|No"]["cards_guessed"], 14)
+            self.assertEqual(stats["model-a|2|No|No"]["cards_guessed_correct"], 5)
+
+            # model-b: 8+6=14 total, 6+4=10 correct
+            self.assertEqual(stats["model-b|2|No|No"]["cards_guessed"], 14)
+            self.assertEqual(stats["model-b|2|No|No"]["cards_guessed_correct"], 10)
+        finally:
+            self._cleanup(path, log_path)
+
+    def test_legacy_rows_without_concealment_columns_default_to_zero(self):
+        """CSV rows without concealment columns should default to 0."""
+        f1 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        f2 = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        path, log_path = f1.name, f2.name
+        f1.close()
+        f2.close()
+        try:
+            legacy_fields = [
+                "model", "history_depth", "games_played", "games_won",
+                "win_rate", "elo", "total_tokens", "cached_tokens",
+                "total_queries", "avg_tokens_per_query",
+                "bluffs", "bluffs_caught", "bluff_success_rate",
+                "challenges_issued", "challenges_correct",
+                "challenge_success_rate",
+                "card_guesses_total", "card_guesses_correct",
+                "card_guess_accuracy",
+            ]
+            with open(path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=legacy_fields)
+                writer.writeheader()
+                writer.writerow({
+                    "model": "old-model", "history_depth": 2,
+                    "games_played": 5, "games_won": 2,
+                    "win_rate": "0.4000", "elo": "1500.0",
+                    "total_tokens": 1000, "cached_tokens": 0,
+                    "total_queries": 10, "avg_tokens_per_query": "100.0",
+                    "bluffs": 0, "bluffs_caught": 0,
+                    "bluff_success_rate": "0.0000",
+                    "challenges_issued": 0, "challenges_correct": 0,
+                    "challenge_success_rate": "0.0000",
+                    "card_guesses_total": 0, "card_guesses_correct": 0,
+                    "card_guess_accuracy": "0.0000",
+                })
+            with patch("AI_game.stats.STATS_FILE", path):
+                stats = _load_stats()
+            self.assertEqual(stats["old-model|2|No|No"]["cards_guessed"], 0)
+            self.assertEqual(stats["old-model|2|No|No"]["cards_guessed_correct"], 0)
         finally:
             self._cleanup(path, log_path)
 
