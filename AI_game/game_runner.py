@@ -86,6 +86,7 @@ class GameRunner:
         self._round_number = 0        # full rounds completed
         self._round_turn_count = 0    # turns taken in the current round
         self._last_survey_round = 0   # last round at which a survey was run
+        self._points_data = {}    # player name -> list of per-turn points
 
     def run(self):
         """Run the full game from setup to game over.
@@ -343,10 +344,12 @@ class GameRunner:
 
             # Print game state after each full turn
             if self.controller.state == State.CHOOSE_ACTION:
+                self._snapshot_points()
                 self.output.game_state_summary(self.controller)
 
         # Game over
         if self.controller.state == State.GAME_OVER:
+            self._snapshot_points()
             self._consume_log()
             winner = self.controller.game.get_living_players()[0]
             self.output.game_over(winner.name)
@@ -357,7 +360,8 @@ class GameRunner:
             if self.log_writer:
                 self.log_writer.game_over(winner.name,
                                           winner_agent=winner_agent)
-            record_game(self.agents, winner_agent, seed=self.seed)
+            record_game(self.agents, winner_agent, seed=self.seed,
+                        points_data=self._points_data)
             return {
                 "winner_name": winner.name,
                 "winner_model": winner_agent.model,
@@ -470,6 +474,22 @@ class GameRunner:
                 )
                 agent.card_guesses_total += total
                 agent.card_guesses_correct += correct
+
+    def _snapshot_points(self):
+        """Record current points for all players after a turn resolves.
+
+        Points formula: coins + (7 * influence_count).
+        Eliminated players (0 influence) are recorded as 0.
+        """
+        for player in self.controller.game.players:
+            influence_count = len(player.influence)
+            if influence_count == 0:
+                points = 0
+            else:
+                points = player.coins + 7 * influence_count
+            if player.name not in self._points_data:
+                self._points_data[player.name] = []
+            self._points_data[player.name].append(points)
 
     def _consume_log(self):
         """Transfer new controller log entries into event_log and print them."""

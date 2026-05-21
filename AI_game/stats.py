@@ -8,6 +8,7 @@ STATS_FILE = os.path.join(os.path.dirname(__file__), "winrates.csv")
 GAME_LOG_FILE = os.path.join(os.path.dirname(__file__), "game_log.csv")
 GAME_LOG_2_FILE = os.path.join(os.path.dirname(__file__), "game_log_2.csv")
 GAME_LOG_3_FILE = os.path.join(os.path.dirname(__file__), "game_log_3.csv")
+POINTS_FILE = os.path.join(os.path.dirname(__file__), "points.csv")
 FIELDNAMES = [
     "model", "history_depth", "rules", "strategy",
     "games_played", "games_won", "win_rate", "elo",
@@ -61,6 +62,11 @@ GAME_LOG_3_FIELDNAMES = [
     "Game #", "Seed", "Player", "Turn Order", "Rules", "Strategy", "Win",
     "bluffs", "bluffs_caught", "challenges", "challenges_correct",
     "card_guesses_total", "card_guesses_correct",
+]
+
+_MAX_TURNS = 30
+POINTS_FIELDNAMES = ["Game #", "Seed", "Player"] + [
+    f"Turn {n}" for n in range(1, _MAX_TURNS + 1)
 ]
 
 
@@ -309,6 +315,56 @@ def _append_game_log_3(agents, winner_agent, seed):
             })
 
 
+def _append_points_csv(agents, seed, points_data):
+    """Append per-turn points rows to the points CSV.
+
+    Args:
+        agents: list of Agent instances that participated.
+        seed: the game seed (integer).
+        points_data: dict mapping player name (str) to a list of per-turn
+            point values.  The list index corresponds to turn number minus 1.
+    """
+    next_game_num = 1
+    if os.path.exists(POINTS_FILE):
+        with open(POINTS_FILE, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    num = int(row.get("Game #", 0))
+                except (ValueError, TypeError):
+                    num = 0
+                if num >= next_game_num:
+                    next_game_num = num + 1
+
+    file_exists = os.path.exists(POINTS_FILE)
+    with open(POINTS_FILE, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=POINTS_FIELDNAMES)
+        if not file_exists:
+            writer.writeheader()
+        for agent in agents:
+            # Map model to friendly name.
+            player_name = None
+            for prefix, name in _MODEL_PREFIX_MAP.items():
+                if agent.model.startswith(prefix):
+                    player_name = name
+                    break
+            if player_name is None:
+                continue
+            row = {
+                "Game #": next_game_num,
+                "Seed": seed if seed is not None else "",
+                "Player": player_name,
+            }
+            turn_values = points_data.get(agent.name, [])
+            for t in range(1, _MAX_TURNS + 1):
+                idx = t - 1
+                if idx < len(turn_values):
+                    row[f"Turn {t}"] = turn_values[idx]
+                else:
+                    row[f"Turn {t}"] = ""
+            writer.writerow(row)
+
+
 def _compute_elo_updates(agent_keys, stats, winner_key):
     """Compute new ELO ratings using pairwise multi-player approach.
 
@@ -348,13 +404,15 @@ def _compute_elo_updates(agent_keys, stats, winner_key):
     return new_elos
 
 
-def record_game(agents, winner_agent, seed=None):
+def record_game(agents, winner_agent, seed=None, points_data=None):
     """Record a completed game for all participating agents.
 
     Args:
         agents: list of Agent instances that participated.
         winner_agent: the Agent instance that won the game.
         seed: the game seed (integer) for reproducibility tracking.
+        points_data: optional dict mapping player name to list of per-turn
+            point values for the points CSV.
     """
     stats = _load_stats()
 
@@ -418,3 +476,5 @@ def record_game(agents, winner_agent, seed=None):
     _append_game_log(agents, winner_agent, seed)
     _append_game_log_2(agents, winner_agent, seed)
     _append_game_log_3(agents, winner_agent, seed)
+    if points_data is not None:
+        _append_points_csv(agents, seed, points_data)

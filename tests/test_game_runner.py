@@ -850,5 +850,61 @@ class TestQueryAgentTimeout(unittest.TestCase):
         self.assertEqual(action, "Income")
 
 
+class TestSnapshotPoints(unittest.TestCase):
+    """Tests for _snapshot_points method."""
+
+    def test_initial_points_two_cards_two_coins(self):
+        """Each player starts with 2 coins and 2 cards: points = 2 + 7*2 = 16."""
+        runner, agents = _make_runner()
+        ctrl = runner.controller
+        # Default start: 2 coins, 2 influence
+        runner._snapshot_points()
+        for player in ctrl.game.players:
+            self.assertEqual(runner._points_data[player.name], [16])
+
+    def test_points_with_different_coins(self):
+        """Points reflect updated coin counts."""
+        runner, agents = _make_runner()
+        ctrl = runner.controller
+        ctrl.game.players[0].coins = 5
+        ctrl.game.players[1].coins = 0
+        runner._snapshot_points()
+        # Alice: 5 + 7*2 = 19, Bob: 0 + 7*2 = 14
+        self.assertEqual(runner._points_data["Alice"], [19])
+        self.assertEqual(runner._points_data["Bob"], [14])
+
+    def test_eliminated_player_records_zero(self):
+        """A player with 0 influence should record 0 points."""
+        runner, agents = _make_runner()
+        ctrl = runner.controller
+        ctrl.game.players[1].influence = []
+        ctrl.game.players[1].coins = 5
+        runner._snapshot_points()
+        # Bob eliminated: 0 regardless of coins
+        self.assertEqual(runner._points_data["Bob"], [0])
+
+    def test_one_card_player(self):
+        """A player with 1 card: points = coins + 7*1."""
+        runner, agents = _make_runner()
+        ctrl = runner.controller
+        ctrl.game.players[0].influence = ["Duke"]
+        ctrl.game.players[0].coins = 3
+        runner._snapshot_points()
+        # Alice: 3 + 7*1 = 10
+        self.assertEqual(runner._points_data["Alice"], [10])
+
+    def test_multiple_snapshots_accumulate(self):
+        """Successive calls append to the list."""
+        runner, agents = _make_runner()
+        ctrl = runner.controller
+        runner._snapshot_points()
+        # Change state
+        ctrl.game.players[0].coins = 5
+        runner._snapshot_points()
+        self.assertEqual(len(runner._points_data["Alice"]), 2)
+        self.assertEqual(runner._points_data["Alice"][0], 16)  # 2 + 7*2
+        self.assertEqual(runner._points_data["Alice"][1], 19)  # 5 + 7*2
+
+
 if __name__ == "__main__":
     unittest.main()
