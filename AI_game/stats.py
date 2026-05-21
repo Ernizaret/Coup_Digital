@@ -66,6 +66,7 @@ GAME_LOG_3_FIELDNAMES = [
     "bluffs", "bluffs_caught", "challenges", "challenges_correct",
     "card_guesses_total", "card_guesses_correct",
     "cards_guessed", "cards_guessed_correct",
+    "Turn Eliminated",
 ]
 
 _MAX_TURNS = 30
@@ -179,8 +180,43 @@ def _save_stats(stats):
             })
 
 
+def _migrate_csv_header(filepath, expected_fieldnames):
+    """Rewrite a CSV file's header if it's missing columns.
+
+    Reads the existing file, checks if the header matches
+    *expected_fieldnames*, and if not rewrites the file with the
+    updated header while preserving all existing data rows.
+    """
+    if not os.path.exists(filepath):
+        return
+    with open(filepath, newline="") as f:
+        reader = csv.reader(f)
+        try:
+            existing_header = next(reader)
+        except StopIteration:
+            return
+        if existing_header == list(expected_fieldnames):
+            return
+        rows = list(reader)
+    # Map old column positions to preserve existing data.
+    old_indices = {name: i for i, name in enumerate(existing_header)}
+    with open(filepath, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(expected_fieldnames)
+        for row in rows:
+            new_row = []
+            for field in expected_fieldnames:
+                idx = old_indices.get(field)
+                if idx is not None and idx < len(row):
+                    new_row.append(row[idx])
+                else:
+                    new_row.append("")
+            writer.writerow(new_row)
+
+
 def _append_game_log(agents, winner_agent, seed):
     """Append a single game entry to the per-game log CSV."""
+    _migrate_csv_header(GAME_LOG_FILE, GAME_LOG_FIELDNAMES)
     file_exists = os.path.exists(GAME_LOG_FILE)
     with open(GAME_LOG_FILE, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=GAME_LOG_FIELDNAMES)
@@ -217,6 +253,7 @@ def _append_game_log(agents, winner_agent, seed):
 
 def _append_game_log_2(agents, winner_agent, seed):
     """Append a single game entry to the per-model game_log_2 CSV."""
+    _migrate_csv_header(GAME_LOG_2_FILE, GAME_LOG_2_FIELDNAMES)
     # Determine the next Game # by reading existing rows.
     next_game_num = 1
     if os.path.exists(GAME_LOG_2_FILE):
@@ -285,6 +322,7 @@ def _append_game_log_2(agents, winner_agent, seed):
 
 def _append_game_log_3(agents, winner_agent, seed):
     """Append one row per player to the per-player game_log_3 CSV."""
+    _migrate_csv_header(GAME_LOG_3_FILE, GAME_LOG_3_FIELDNAMES)
     next_game_num = 1
     if os.path.exists(GAME_LOG_3_FILE):
         with open(GAME_LOG_3_FILE, newline="") as f:
@@ -338,6 +376,9 @@ def _append_game_log_3(agents, winner_agent, seed):
                 ),
                 "cards_guessed_correct": getattr(
                     agent, "cards_guessed_correct", 0
+                ),
+                "Turn Eliminated": (
+                    getattr(agent, "turn_eliminated", 0) or ""
                 ),
             })
 

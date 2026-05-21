@@ -129,6 +129,7 @@ class GameRunner:
             agent.card_guesses_correct = 0
             agent.cards_guessed = 0
             agent.cards_guessed_correct = 0
+            agent.turn_eliminated = 0
 
     def _apply_preset(self):
         """Override game state with a preset's custom starting conditions.
@@ -341,6 +342,11 @@ class GameRunner:
                 log_cursor_before, player_agents,
                 acting_player_before, blocker_before,
             )
+
+            # Detect newly eliminated players
+            for p, ag in player_agents.items():
+                if len(p.influence) == 0 and ag.turn_eliminated == 0:
+                    ag.turn_eliminated = self._turn_number
 
             self._consume_log()
 

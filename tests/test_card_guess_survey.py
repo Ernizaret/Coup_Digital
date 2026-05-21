@@ -33,7 +33,8 @@ from AI_game.prompt_builder import (
     VALID_CARD_TYPES,
 )
 from AI_game.stats import (
-    _load_stats, _save_stats, record_game, FIELDNAMES,
+    _load_stats, _save_stats, _migrate_csv_header, _append_game_log_3,
+    record_game, FIELDNAMES, GAME_LOG_3_FIELDNAMES,
 )
 from src.controller import GameController, State
 
@@ -1010,6 +1011,171 @@ class TestConcealmentStatsCSV(unittest.TestCase):
             self.assertEqual(stats["old-model|2|No|No"]["cards_guessed_correct"], 0)
         finally:
             self._cleanup(path, log_path)
+
+
+class TestMigrateCSVHeader(unittest.TestCase):
+    """Test that _migrate_csv_header updates stale CSV headers."""
+
+    def test_adds_missing_columns_to_game_log_3(self):
+        """An old game_log_3.csv missing new columns gets its header updated."""
+        old_fields = [
+            "Game #", "Seed", "Player", "Turn Order", "Rules", "Strategy",
+            "Win", "bluffs", "bluffs_caught", "challenges",
+            "challenges_correct", "card_guesses_total", "card_guesses_correct",
+        ]
+        with tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=False, mode="w", newline=""
+        ) as f:
+            path = f.name
+            writer = csv.writer(f)
+            writer.writerow(old_fields)
+            writer.writerow([1, 123, "Claude", 1, 1, -1, 1, 2, 0, 1, 1, 4, 3])
+        try:
+            _migrate_csv_header(path, GAME_LOG_3_FIELDNAMES)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                self.assertEqual(
+                    list(reader.fieldnames), list(GAME_LOG_3_FIELDNAMES)
+                )
+                row = next(reader)
+            # Existing data preserved
+            self.assertEqual(row["Game #"], "1")
+            self.assertEqual(row["Player"], "Claude")
+            self.assertEqual(row["card_guesses_total"], "4")
+            self.assertEqual(row["card_guesses_correct"], "3")
+            # New columns default to empty
+            self.assertEqual(row["cards_guessed"], "")
+            self.assertEqual(row["cards_guessed_correct"], "")
+        finally:
+            os.remove(path)
+
+    def test_no_op_when_header_matches(self):
+        """If header already matches, file is not rewritten."""
+        with tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=False, mode="w", newline=""
+        ) as f:
+            path = f.name
+            writer = csv.writer(f)
+            writer.writerow(GAME_LOG_3_FIELDNAMES)
+            writer.writerow([1, 123, "Claude", 1, 1, -1, 1, 2, 0, 1, 1, 4, 3, 6, 2, ""])
+        try:
+            mtime_before = os.path.getmtime(path)
+            _migrate_csv_header(path, GAME_LOG_3_FIELDNAMES)
+            mtime_after = os.path.getmtime(path)
+            # File should not have been rewritten
+            self.assertEqual(mtime_before, mtime_after)
+        finally:
+            os.remove(path)
+
+    def test_no_op_when_file_missing(self):
+        """Migration on a nonexistent file should not raise."""
+        _migrate_csv_header("/nonexistent/path.csv", GAME_LOG_3_FIELDNAMES)
+
+
+# ===========================================================================
+# Turn Eliminated tracking
+# ===========================================================================
+
+class TestTurnEliminatedCounter(unittest.TestCase):
+    """Test turn_eliminated initialization and detection."""
+
+    def test_turn_eliminated_initialized_to_zero(self):
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        runner = GameRunner(agents, quiet=True, log=False, survey_interval=0)
+        runner._setup_game()
+        for agent in agents:
+            self.assertEqual(agent.turn_eliminated, 0)
+
+    def test_turn_eliminated_reset_on_setup(self):
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        agents[0].turn_eliminated = 5
+        runner = GameRunner(agents, quiet=True, log=False, survey_interval=0)
+        runner._setup_game()
+        self.assertEqual(agents[0].turn_eliminated, 0)
+
+
+class TestTurnEliminatedCSV(unittest.TestCase):
+    """Test Turn Eliminated column in game_log_3.csv."""
+
+    def test_fieldnames_include_turn_eliminated(self):
+        self.assertIn("Turn Eliminated", GAME_LOG_3_FIELDNAMES)
+
+    def test_turn_eliminated_written_for_loser(self):
+        """Non-zero turn_eliminated should appear in the CSV."""
+        f = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        path = f.name
+        f.close()
+        os.remove(path)  # ensure file doesn't exist so header gets written
+        try:
+            agents = [
+                FakeAgent("Alice", model="anthropic/claude-test"),
+                FakeAgent("Bob", model="google/gemini-test"),
+            ]
+            agents[0].turn_eliminated = 0   # winner
+            agents[1].turn_eliminated = 4   # eliminated on turn 4
+            with patch("AI_game.stats.GAME_LOG_3_FILE", path):
+                _append_game_log_3(agents, agents[0], seed=42)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            # Winner row: Turn Eliminated should be empty
+            self.assertEqual(rows[0]["Turn Eliminated"], "")
+            # Loser row: Turn Eliminated should be 4
+            self.assertEqual(rows[1]["Turn Eliminated"], "4")
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_turn_eliminated_empty_for_winner(self):
+        """Winner (turn_eliminated=0) should have empty Turn Eliminated."""
+        f = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        path = f.name
+        f.close()
+        os.remove(path)
+        try:
+            agents = [
+                FakeAgent("Alice", model="anthropic/claude-test"),
+                FakeAgent("Bob", model="google/gemini-test"),
+            ]
+            agents[0].turn_eliminated = 0
+            agents[1].turn_eliminated = 0  # both survived (shouldn't happen, but test the logic)
+            with patch("AI_game.stats.GAME_LOG_3_FILE", path):
+                _append_game_log_3(agents, agents[0], seed=42)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            for row in rows:
+                self.assertEqual(row["Turn Eliminated"], "")
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_migrate_adds_turn_eliminated_column(self):
+        """Old game_log_3.csv without Turn Eliminated gets it added."""
+        old_fields = [
+            "Game #", "Seed", "Player", "Turn Order", "Rules", "Strategy",
+            "Win", "bluffs", "bluffs_caught", "challenges",
+            "challenges_correct", "card_guesses_total", "card_guesses_correct",
+            "cards_guessed", "cards_guessed_correct",
+        ]
+        with tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=False, mode="w", newline=""
+        ) as f:
+            path = f.name
+            writer = csv.writer(f)
+            writer.writerow(old_fields)
+            writer.writerow([1, 123, "Claude", 1, 1, -1, 1, 2, 0, 1, 1, 4, 3, 6, 2])
+        try:
+            _migrate_csv_header(path, GAME_LOG_3_FIELDNAMES)
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                self.assertIn("Turn Eliminated", reader.fieldnames)
+                row = next(reader)
+            # Existing data preserved, new column defaults to empty
+            self.assertEqual(row["Game #"], "1")
+            self.assertEqual(row["Turn Eliminated"], "")
+        finally:
+            os.remove(path)
 
 
 if __name__ == "__main__":
