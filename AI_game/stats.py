@@ -16,6 +16,7 @@ FIELDNAMES = [
     "bluffs", "bluffs_caught", "bluff_success_rate",
     "challenges_issued", "challenges_correct", "challenge_success_rate",
     "card_guesses_total", "card_guesses_correct", "card_guess_accuracy",
+    "cards_guessed", "cards_guessed_correct", "cards_guessed_accuracy",
 ]
 
 ELO_START = 1500.0
@@ -25,6 +26,7 @@ _STAT_PAIRS = [
     ("bluffs", "bluffs_caught"),
     ("challenges_issued", "challenges_correct"),
     ("card_guesses_total", "card_guesses_correct"),
+    ("cards_guessed", "cards_guessed_correct"),
 ]
 
 GAME_LOG_FIELDNAMES = ["timestamp", "seed"]
@@ -51,6 +53,7 @@ _PER_PLAYER_FIELDS = [
     "Turn Order", "Rules", "Strategy", "Win",
     "bluffs", "bluffs_caught", "challenges", "challenges_correct",
     "card_guesses_total", "card_guesses_correct",
+    "cards_guessed", "cards_guessed_correct",
 ]
 
 GAME_LOG_2_FIELDNAMES = ["Game #", "Seed"]
@@ -62,6 +65,8 @@ GAME_LOG_3_FIELDNAMES = [
     "Game #", "Seed", "Player", "Turn Order", "Rules", "Strategy", "Win",
     "bluffs", "bluffs_caught", "challenges", "challenges_correct",
     "card_guesses_total", "card_guesses_correct",
+    "cards_guessed", "cards_guessed_correct",
+    "Turn Eliminated",
 ]
 
 _MAX_TURNS = 30
@@ -112,6 +117,8 @@ def _load_stats():
                 "challenges_correct": int(row.get("challenges_correct") or 0),
                 "card_guesses_total": int(row.get("card_guesses_total") or 0),
                 "card_guesses_correct": int(row.get("card_guesses_correct") or 0),
+                "cards_guessed": int(row.get("cards_guessed") or 0),
+                "cards_guessed_correct": int(row.get("cards_guessed_correct") or 0),
             }
     return stats
 
@@ -141,6 +148,10 @@ def _save_stats(stats):
             cg_correct = data.get("card_guesses_correct", 0)
             cg_accuracy = (cg_correct / cg_total
                            if cg_total > 0 else 0.0)
+            cgd_total = data.get("cards_guessed", 0)
+            cgd_correct = data.get("cards_guessed_correct", 0)
+            cgd_accuracy = (cgd_correct / cgd_total
+                            if cgd_total > 0 else 0.0)
             writer.writerow({
                 "model": data["model"],
                 "history_depth": data["history_depth"],
@@ -163,11 +174,49 @@ def _save_stats(stats):
                 "card_guesses_total": cg_total,
                 "card_guesses_correct": cg_correct,
                 "card_guess_accuracy": f"{cg_accuracy:.4f}",
+                "cards_guessed": cgd_total,
+                "cards_guessed_correct": cgd_correct,
+                "cards_guessed_accuracy": f"{cgd_accuracy:.4f}",
             })
+
+
+def _migrate_csv_header(filepath, expected_fieldnames):
+    """Rewrite a CSV file's header if it's missing columns.
+
+    Reads the existing file, checks if the header matches
+    *expected_fieldnames*, and if not rewrites the file with the
+    updated header while preserving all existing data rows.
+    """
+    if not os.path.exists(filepath):
+        return
+    with open(filepath, newline="") as f:
+        reader = csv.reader(f)
+        try:
+            existing_header = next(reader)
+        except StopIteration:
+            return
+        if existing_header == list(expected_fieldnames):
+            return
+        rows = list(reader)
+    # Map old column positions to preserve existing data.
+    old_indices = {name: i for i, name in enumerate(existing_header)}
+    with open(filepath, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(expected_fieldnames)
+        for row in rows:
+            new_row = []
+            for field in expected_fieldnames:
+                idx = old_indices.get(field)
+                if idx is not None and idx < len(row):
+                    new_row.append(row[idx])
+                else:
+                    new_row.append("")
+            writer.writerow(new_row)
 
 
 def _append_game_log(agents, winner_agent, seed):
     """Append a single game entry to the per-game log CSV."""
+    _migrate_csv_header(GAME_LOG_FILE, GAME_LOG_FIELDNAMES)
     file_exists = os.path.exists(GAME_LOG_FILE)
     with open(GAME_LOG_FILE, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=GAME_LOG_FIELDNAMES)
@@ -197,11 +246,14 @@ def _append_game_log(agents, winner_agent, seed):
             row[f"{prefix} challenges_correct"] = getattr(agent, "challenges_correct", 0)
             row[f"{prefix} card_guesses_total"] = getattr(agent, "card_guesses_total", 0)
             row[f"{prefix} card_guesses_correct"] = getattr(agent, "card_guesses_correct", 0)
+            row[f"{prefix} cards_guessed"] = getattr(agent, "cards_guessed", 0)
+            row[f"{prefix} cards_guessed_correct"] = getattr(agent, "cards_guessed_correct", 0)
         writer.writerow(row)
 
 
 def _append_game_log_2(agents, winner_agent, seed):
     """Append a single game entry to the per-model game_log_2 CSV."""
+    _migrate_csv_header(GAME_LOG_2_FILE, GAME_LOG_2_FIELDNAMES)
     # Determine the next Game # by reading existing rows.
     next_game_num = 1
     if os.path.exists(GAME_LOG_2_FILE):
@@ -259,11 +311,18 @@ def _append_game_log_2(agents, winner_agent, seed):
             row[f"{col_prefix} card_guesses_correct"] = getattr(
                 agent, "card_guesses_correct", 0
             )
+            row[f"{col_prefix} cards_guessed"] = getattr(
+                agent, "cards_guessed", 0
+            )
+            row[f"{col_prefix} cards_guessed_correct"] = getattr(
+                agent, "cards_guessed_correct", 0
+            )
         writer.writerow(row)
 
 
 def _append_game_log_3(agents, winner_agent, seed):
     """Append one row per player to the per-player game_log_3 CSV."""
+    _migrate_csv_header(GAME_LOG_3_FILE, GAME_LOG_3_FIELDNAMES)
     next_game_num = 1
     if os.path.exists(GAME_LOG_3_FILE):
         with open(GAME_LOG_3_FILE, newline="") as f:
@@ -311,6 +370,15 @@ def _append_game_log_3(agents, winner_agent, seed):
                 ),
                 "card_guesses_correct": getattr(
                     agent, "card_guesses_correct", 0
+                ),
+                "cards_guessed": getattr(
+                    agent, "cards_guessed", 0
+                ),
+                "cards_guessed_correct": getattr(
+                    agent, "cards_guessed_correct", 0
+                ),
+                "Turn Eliminated": (
+                    getattr(agent, "turn_eliminated", 0) or ""
                 ),
             })
 
@@ -433,6 +501,7 @@ def record_game(agents, winner_agent, seed=None, points_data=None):
                 "bluffs": 0, "bluffs_caught": 0,
                 "challenges_issued": 0, "challenges_correct": 0,
                 "card_guesses_total": 0, "card_guesses_correct": 0,
+                "cards_guessed": 0, "cards_guessed_correct": 0,
             }
         stats[key]["games_played"] += 1
         stats[key]["total_tokens"] += agent.prompt_tokens + agent.completion_tokens
@@ -444,6 +513,8 @@ def record_game(agents, winner_agent, seed=None, points_data=None):
         stats[key]["challenges_correct"] += getattr(agent, "challenges_correct", 0)
         stats[key]["card_guesses_total"] += getattr(agent, "card_guesses_total", 0)
         stats[key]["card_guesses_correct"] += getattr(agent, "card_guesses_correct", 0)
+        stats[key]["cards_guessed"] += getattr(agent, "cards_guessed", 0)
+        stats[key]["cards_guessed_correct"] += getattr(agent, "cards_guessed_correct", 0)
         agent_keys.append(key)
 
     # Determine winner key directly from the winner agent
@@ -463,6 +534,7 @@ def record_game(agents, winner_agent, seed=None, points_data=None):
             "bluffs": 0, "bluffs_caught": 0,
             "challenges_issued": 0, "challenges_correct": 0,
             "card_guesses_total": 0, "card_guesses_correct": 0,
+            "cards_guessed": 0, "cards_guessed_correct": 0,
         }
     stats[winner_key]["games_won"] += 1
 

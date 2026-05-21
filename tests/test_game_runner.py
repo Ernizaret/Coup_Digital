@@ -751,6 +751,8 @@ class SlowFakeAgent:
         self.challenges_correct = 0
         self.card_guesses_total = 0
         self.card_guesses_correct = 0
+        self.cards_guessed = 0
+        self.cards_guessed_correct = 0
         self.call_count = 0
 
     def query_structured(self, prompt_sections):
