@@ -1,6 +1,7 @@
 class Player:
-    def __init__(self, name):
+    def __init__(self, name, is_ai=False):
         self.name = name
+        self.is_ai = is_ai
         self.coins = 2
         self.influence = []
     

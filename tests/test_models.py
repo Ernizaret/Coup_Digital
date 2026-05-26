@@ -47,6 +47,21 @@ class TestPlayer(unittest.TestCase):
         p.lose_influence("Duke")
         self.assertFalse(p.is_alive())
 
+    def test_is_ai_default_false(self):
+        p = Player("Alice")
+        self.assertFalse(p.is_ai)
+
+    def test_is_ai_explicit_true(self):
+        p = Player("Claude", is_ai=True)
+        self.assertTrue(p.is_ai)
+        self.assertEqual(p.name, "Claude")
+        self.assertEqual(p.coins, 2)
+        self.assertEqual(p.influence, [])
+
+    def test_is_ai_explicit_false(self):
+        p = Player("Alice", is_ai=False)
+        self.assertFalse(p.is_ai)
+
 
 class TestDeck(unittest.TestCase):
     def test_initial_size(self):
