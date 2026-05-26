@@ -1,9 +1,10 @@
 {
     "api_key": "sk-or-v1-...",
+    "anthropic_api_key": "sk-ant-...",
     "prompt_mode": "heavy",
     "agents": {
         "ChatGPT": "openai/gpt-4o",
-        "Claude": "anthropic/claude-sonnet-4-20250514",
+        "Claude": "claude-sonnet-4-20250514",
         "Gemini": "google/gemini-2.0-flash-001",
         "Perplexity": "perplexity/sonar"
     }

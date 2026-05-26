@@ -4,8 +4,10 @@ import sys
 import unittest
 from unittest.mock import patch, MagicMock
 
-# Stub out openai before any AI_game imports (not installed in test env)
+# Stub out openai and anthropic before any AI_game imports
+# (they may not be installed in the test env)
 sys.modules.setdefault("openai", MagicMock())
+sys.modules.setdefault("anthropic", MagicMock())
 
 from AI_game.agent_factory import build_agent_names, create_agents_from_names
 
@@ -60,25 +62,27 @@ class TestCreateAgentsFromNames(unittest.TestCase):
     @patch("AI_game.agent_factory.get_available_agents",
            return_value=["Claude", "Gemini"])
     def test_creates_agents_in_order(self, mock_avail, mock_create):
-        mock_create.side_effect = lambda name, key, model, **kw: MagicMock(
+        mock_create.side_effect = lambda name, model, **kw: MagicMock(
             name=name, model=model
         )
         agents = create_agents_from_names(["Claude", "Gemini"], self.config)
         self.assertEqual(len(agents), 2)
         mock_create.assert_any_call(
-            "Claude", "test-key", "anthropic/claude-3.5-sonnet",
-            history_depth=2, rules_summary=False, strategy_guide=False
+            "Claude", "anthropic/claude-3.5-sonnet",
+            history_depth=2, rules_summary=False, strategy_guide=False,
+            openrouter_api_key="test-key", anthropic_api_key=None,
         )
         mock_create.assert_any_call(
-            "Gemini", "test-key", "google/gemini-pro",
-            history_depth=2, rules_summary=False, strategy_guide=False
+            "Gemini", "google/gemini-pro",
+            history_depth=2, rules_summary=False, strategy_guide=False,
+            openrouter_api_key="test-key", anthropic_api_key=None,
         )
 
     @patch("AI_game.agent_factory.create_agent")
     @patch("AI_game.agent_factory.get_available_agents",
            return_value=["Claude", "Gemini"])
     def test_numbered_name_maps_to_provider(self, mock_avail, mock_create):
-        mock_create.side_effect = lambda name, key, model, **kw: MagicMock(
+        mock_create.side_effect = lambda name, model, **kw: MagicMock(
             name=name, model=model
         )
         agents = create_agents_from_names(
@@ -87,8 +91,8 @@ class TestCreateAgentsFromNames(unittest.TestCase):
         self.assertEqual(len(agents), 2)
         # Both should use the Claude model
         calls = mock_create.call_args_list
-        self.assertEqual(calls[0][0][2], "anthropic/claude-3.5-sonnet")
-        self.assertEqual(calls[1][0][2], "anthropic/claude-3.5-sonnet")
+        self.assertEqual(calls[0][0][1], "anthropic/claude-3.5-sonnet")
+        self.assertEqual(calls[1][0][1], "anthropic/claude-3.5-sonnet")
 
     @patch("AI_game.agent_factory.get_available_agents",
            return_value=["Claude", "Gemini"])

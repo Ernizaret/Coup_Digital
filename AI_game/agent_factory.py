@@ -32,7 +32,8 @@ def create_agents_from_names(agent_names, config, history_depths=None,
     Raises:
         ValueError: if an agent name does not match any configured provider.
     """
-    api_key = config["api_key"]
+    openrouter_api_key = config.get("api_key")
+    anthropic_api_key = config.get("anthropic_api_key")
     agents_cfg = config["agents"]
     available = get_available_agents(config)
     agents = []
@@ -56,10 +57,12 @@ def create_agents_from_names(agent_names, config, history_depths=None,
         for provider in available:
             if name == provider or name.startswith(provider + " "):
                 model = agents_cfg[provider]
-                agent = create_agent(name, api_key, model,
+                agent = create_agent(name, model,
                                      history_depth=history_depth,
                                      rules_summary=rules_summary,
-                                     strategy_guide=strategy_guide)
+                                     strategy_guide=strategy_guide,
+                                     openrouter_api_key=openrouter_api_key,
+                                     anthropic_api_key=anthropic_api_key)
                 agents.append(agent)
                 matched = True
                 break

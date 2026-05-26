@@ -1,4 +1,4 @@
-"""Load OpenRouter API key and agent model configuration from ai_config.json."""
+"""Load API keys and agent model configuration from ai_config.json."""
 
 import json
 import os
@@ -15,11 +15,25 @@ def _find_config_path():
     return os.path.join(project_root, CONFIG_FILENAME)
 
 
+def _has_claude_agent(config):
+    """Return True if any configured agent uses a Claude model."""
+    for model in config.get("agents", {}).values():
+        if model.startswith("claude"):
+            return True
+    return False
+
+
 def load_config():
     """Read ai_config.json and return the parsed dict.
 
-    Returns dict with "api_key" (str), "agents" (dict of name -> model),
-    and "prompt_mode" (str, defaults to "heavy").
+    Returns dict with "api_key" (str), "anthropic_api_key" (str, optional),
+    "agents" (dict of name -> model), and "prompt_mode" (str, defaults to
+    "heavy").
+
+    The "api_key" (OpenRouter) is required when any non-Claude agent is
+    configured.  The "anthropic_api_key" is required when any Claude agent
+    is configured (model name starts with "claude").
+
     Raises FileNotFoundError with a helpful message if the file is missing.
     """
     path = _find_config_path()
@@ -30,11 +44,28 @@ def load_config():
         )
     with open(path, "r", encoding="utf-8") as f:
         config = json.load(f)
-    if not config.get("api_key", "").strip():
+
+    has_claude = _has_claude_agent(config)
+    has_non_claude = any(
+        not model.startswith("claude")
+        for model in config.get("agents", {}).values()
+    )
+
+    # OpenRouter key is required when non-Claude agents are configured
+    if has_non_claude and not config.get("api_key", "").strip():
         raise ValueError(
             "No OpenRouter API key found in ai_config.json.\n"
             "Set the \"api_key\" field to your OpenRouter key."
         )
+
+    # Anthropic key is required when Claude agents are configured
+    if has_claude and not config.get("anthropic_api_key", "").strip():
+        raise ValueError(
+            "No Anthropic API key found in ai_config.json.\n"
+            "Set the \"anthropic_api_key\" field to your Anthropic key.\n"
+            "Claude models are called directly via the Anthropic API."
+        )
+
     # Validate / default prompt_mode
     config.setdefault("prompt_mode", DEFAULT_PROMPT_MODE)
     if config["prompt_mode"] not in VALID_PROMPT_MODES:

@@ -41,7 +41,10 @@ class TestLoadConfig(unittest.TestCase):
     def test_empty_api_key_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "ai_config.json")
-            self._write_config({"api_key": "", "agents": {}}, path)
+            self._write_config({
+                "api_key": "",
+                "agents": {"Gemini": "google/gemini-pro"},
+            }, path)
             with patch("AI_game.config._find_config_path", return_value=path):
                 with self.assertRaises(ValueError):
                     load_config()
@@ -49,10 +52,33 @@ class TestLoadConfig(unittest.TestCase):
     def test_whitespace_api_key_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "ai_config.json")
-            self._write_config({"api_key": "   ", "agents": {}}, path)
+            self._write_config({
+                "api_key": "   ",
+                "agents": {"Gemini": "google/gemini-pro"},
+            }, path)
             with patch("AI_game.config._find_config_path", return_value=path):
                 with self.assertRaises(ValueError):
                     load_config()
+
+    def test_missing_anthropic_key_with_claude_agent_raises(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "ai_config.json")
+            self._write_config({
+                "api_key": "or-key",
+                "agents": {"Claude": "claude-sonnet-4-20250514"},
+            }, path)
+            with patch("AI_game.config._find_config_path", return_value=path):
+                with self.assertRaises(ValueError):
+                    load_config()
+
+    def test_no_agents_allows_empty_keys(self):
+        """When no agents are configured, neither API key is required."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "ai_config.json")
+            self._write_config({"api_key": "", "agents": {}}, path)
+            with patch("AI_game.config._find_config_path", return_value=path):
+                config = load_config()
+            self.assertEqual(config["agents"], {})
 
     def test_prompt_mode_defaults_to_heavy(self):
         with tempfile.TemporaryDirectory() as tmpdir:

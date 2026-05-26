@@ -385,7 +385,6 @@ def _parse_csv(csv_path, config):
         print(f"Error: CSV file not found: {csv_path}", file=sys.stderr)
         sys.exit(1)
 
-    api_key = config["api_key"]
     agents_cfg = config.get("agents", {})
     available = get_available_agents(config)
 
@@ -537,7 +536,8 @@ def _run_csv_bulk(game_configs, config, prompt_mode, quiet, delay,
     Returns:
         tuple of (results, errors).
     """
-    api_key = config["api_key"]
+    openrouter_api_key = config.get("api_key")
+    anthropic_api_key = config.get("anthropic_api_key")
     num_games = len(game_configs)
     results = []
     errors = []
@@ -570,11 +570,12 @@ def _run_csv_bulk(game_configs, config, prompt_mode, quiet, delay,
             for pcfg in player_cfgs:
                 agent = create_agent(
                     name=pcfg["name"],
-                    api_key=api_key,
                     model=pcfg["model"],
                     history_depth=pcfg["history_depth"],
                     rules_summary=pcfg["rules_summary"],
                     strategy_guide=pcfg["strategy_guide"],
+                    openrouter_api_key=openrouter_api_key,
+                    anthropic_api_key=anthropic_api_key,
                 )
                 agents.append(agent)
 
