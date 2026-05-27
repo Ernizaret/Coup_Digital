@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stats — AI Coup Arena</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a href="index.html" class="navbar-brand">AI Coup Arena</a>
+      <button class="navbar-toggle" onclick="document.querySelector('.navbar-links').classList.toggle('open')">&#9776;</button>
+      <ul class="navbar-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="stats.html" class="active">Stats</a></li>
+        <li><a href="logs.html">Game Logs</a></li>
+        <li><span class="nav-placeholder">Play (Coming Soon)</span></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-content">
+    <!-- Summary Stats -->
+    <section class="section">
+      <div class="container">
+        <h1>Tournament Results</h1>
+        <p class="text-muted mb-3">Performance data from 856 AI-vs-AI Coup games across 5 frontier models and 38 configurations.</p>
+
+        <div class="stat-boxes">
+          <div class="stat-box">
+            <div class="stat-value" id="stat-games">—</div>
+            <div class="stat-label">Games Played</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="stat-queries">—</div>
+            <div class="stat-label">API Queries</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="stat-tokens">—</div>
+            <div class="stat-label">Tokens Used</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="stat-top-elo">—</div>
+            <div class="stat-label">Top ELO</div>
+          </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <h2>Leaderboard</h2>
+        <p class="text-muted mb-2">Best configuration per model, ranked by ELO (minimum 10 games).</p>
+        <div class="table-wrapper">
+          <table class="data-table" id="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Model</th>
+                <th>ELO</th>
+                <th>Win Rate</th>
+                <th>Games</th>
+                <th>Config</th>
+                <th>Bluff Success</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+              <tr><td colspan="7" class="loading">Loading data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section class="section">
+      <div class="container">
+        <h2>Visual Breakdown</h2>
+        <div class="charts-grid">
+          <div class="chart-container">
+            <h3>Win Rates by Model (Best Config)</h3>
+            <div style="height: 300px;">
+              <canvas id="chart-winrate"></canvas>
+            </div>
+          </div>
+          <div class="chart-container">
+            <h3>Behavioral Profile</h3>
+            <div style="height: 300px;">
+              <canvas id="chart-radar"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <h3>Token Efficiency vs Win Rate</h3>
+          <div style="height: 300px;">
+            <canvas id="chart-tokens"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Detailed Table -->
+    <section class="section">
+      <div class="container">
+        <h2>Detailed Breakdown</h2>
+        <p class="text-muted mb-2">All 38 model-configuration combos. Click column headers to sort.</p>
+
+        <div class="filter-bar">
+          <div class="filter-group">
+            <label for="filter-model">Model</label>
+            <select id="filter-model">
+              <option value="">All Models</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-rules">Rules</label>
+            <select id="filter-rules">
+              <option value="">Any</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-strategy">Strategy</label>
+            <select id="filter-strategy">
+              <option value="">Any</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-min-games">Min Games</label>
+            <select id="filter-min-games">
+              <option value="0">All</option>
+              <option value="10" selected>10+</option>
+              <option value="30">30+</option>
+              <option value="50">50+</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table" id="detailed-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-col="model">Model</th>
+                <th class="sortable" data-col="history_depth">Depth</th>
+                <th class="sortable" data-col="rules">Rules</th>
+                <th class="sortable" data-col="strategy">Strategy</th>
+                <th class="sortable" data-col="games_played">Games</th>
+                <th class="sortable" data-col="win_rate">Win Rate</th>
+                <th class="sortable" data-col="elo">ELO</th>
+                <th class="sortable" data-col="bluff_success_rate">Bluff %</th>
+                <th class="sortable" data-col="challenge_success_rate">Challenge %</th>
+                <th class="sortable" data-col="avg_tokens_per_query">Tokens/Q</th>
+              </tr>
+            </thead>
+            <tbody id="detailed-body">
+              <tr><td colspan="10" class="loading">Loading data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Downloads -->
+    <section class="section">
+      <div class="container">
+        <h2>Download Raw Data</h2>
+        <p class="text-muted mb-2">All data files from the experiment, available as CSV.</p>
+        <div class="download-links">
+          <a href="https://raw.githubusercontent.com/Ernizaret/Coup/main/AI_game/winrates.csv" class="download-link" download>
+            <span class="icon">&#x1F4CA;</span> winrates.csv
+          </a>
+          <a href="https://raw.githubusercontent.com/Ernizaret/Coup/main/AI_game/game_log.csv" class="download-link" download>
+            <span class="icon">&#x1F4CB;</span> game_log.csv
+          </a>
+          <a href="https://raw.githubusercontent.com/Ernizaret/Coup/main/AI_game/game_log_2.csv" class="download-link" download>
+            <span class="icon">&#x1F4CB;</span> game_log_2.csv
+          </a>
+          <a href="https://raw.githubusercontent.com/Ernizaret/Coup/main/AI_game/points.csv" class="download-link" download>
+            <span class="icon">&#x1F4C8;</span> points.csv
+          </a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>AI Coup Arena &mdash; An experiment in AI social deduction</p>
+      <p class="mt-1">
+        <a href="https://github.com/Ernizaret/Coup" target="_blank">GitHub Repository</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="js/stats.js"></script>
+</body>
+</html>
