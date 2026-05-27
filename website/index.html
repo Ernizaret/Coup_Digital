@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLMs Play Coup</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a href="index.html" class="navbar-brand">LLMs Play Coup</a>
+      <button class="navbar-toggle" onclick="document.querySelector('.navbar-links').classList.toggle('open')">&#9776;</button>
+      <ul class="navbar-links">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="stats.html">Stats</a></li>
+        <li><a href="logs.html">Game Logs</a></li>
+        <li><span class="nav-placeholder">Play (Coming Soon)</span></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-content">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <h1>LLMs Play Coup</h1>
+        <p class="tagline">
+          What happens when frontier AI models play a game built on deception, bluffing, and social deduction? 856 games. 5 models. One answer.
+        </p>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <span class="number">856</span>
+            <span class="label">Games Played</span>
+          </div>
+          <div class="hero-stat">
+            <span class="number">5</span>
+            <span class="label">AI Models</span>
+          </div>
+          <div class="hero-stat">
+            <span class="number">38</span>
+            <span class="label">Configurations</span>
+          </div>
+          <div class="hero-stat">
+            <span class="number">1614</span>
+            <span class="label">Top ELO</span>
+          </div>
+        </div>
+        <div class="mt-4">
+          <a href="stats.html" class="btn btn-primary">View Results</a>
+          <a href="logs.html" class="btn btn-outline" style="margin-left: 0.75rem;">Browse Games</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- About Me -->
+    <section class="section" id="about">
+      <div class="container">
+        <h2>About Me</h2>
+        <div class="card">
+          <p>
+            <!-- TODO: Replace with your own bio -->
+            I'm a software developer and AI enthusiast fascinated by the intersection of game theory, social deduction, and artificial intelligence. This project grew out of a simple question: can today's LLMs actually bluff?
+          </p>
+          <p class="mt-2">
+            <!-- TODO: Add more about your background, interests, what you do professionally -->
+            With a background in software engineering and a passion for board games, I set out to build a fully automated arena where AI models play Coup — a game that rewards deception, reading opponents, and calculated risk-taking.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Project Overview -->
+    <section class="section" id="project">
+      <div class="container">
+        <h2>The Experiment</h2>
+        <div class="card-grid">
+          <div class="card">
+            <h3>What Is Coup?</h3>
+            <p>
+              Coup is a social deduction card game where players bluff about which influence cards they hold to perform powerful actions. Challenge someone's claim and guess right — they lose a card. Guess wrong — you do. Last player standing wins.
+            </p>
+            <p class="mt-1">
+              It's a game of incomplete information, deception, and risk assessment — exactly the kind of challenge that tests whether AI can reason about what opponents <em>believe</em>, not just what they <em>know</em>.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Why AI vs AI?</h3>
+            <p>
+              Most AI game benchmarks focus on perfect-information games (chess, Go) or well-structured imperfect-information games (poker). Coup is different: it's a <strong>social</strong> deduction game where bluffing, trust, and reputation matter.
+            </p>
+            <p class="mt-1">
+              By pitting frontier LLMs against each other across hundreds of games, we can measure which models are best at deception, which ones challenge appropriately, and how prompt engineering (rules, strategy hints, history depth) affects play quality.
+            </p>
+          </div>
+          <div class="card">
+            <h3>The Setup</h3>
+            <p>
+              Each game runs 4 AI players with different model + configuration combos. The game engine enforces rules, tracks cards, and feeds each player a prompt with the game state. Players respond with their chosen action and reasoning.
+            </p>
+            <p class="mt-1">
+              Configurations vary across: <strong>model</strong> (Claude, GPT-4o, Grok, Gemini, Mistral), <strong>history depth</strong> (how many past turns the AI can see), and whether <strong>rules</strong> or <strong>strategy</strong> guides are included in the prompt.
+            </p>
+          </div>
+          <div class="card">
+            <h3>What We Measure</h3>
+            <p>
+              Beyond win rates and ELO, we track behavioral metrics: bluff success rate (how often bluffs go unchallenged), challenge accuracy (how often challenges catch real bluffs), card guess accuracy, and token efficiency.
+            </p>
+            <p class="mt-1">
+              Every game is logged turn-by-turn with full AI reasoning, and a subset have been reviewed with detailed strategic analysis.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Technical Approach -->
+    <section class="section" id="technical">
+      <div class="container">
+        <h2>Technical Approach</h2>
+        <div class="card">
+          <h3>Architecture</h3>
+          <p>
+            The game engine is a Python implementation of Coup with a state-machine controller. Each AI "player" is an adapter that constructs a prompt from the current game state, sends it to the model's API, and parses the response into a valid game action.
+          </p>
+
+          <h3 class="mt-3">Models Tested</h3>
+          <div class="mt-1" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span class="model-badge claude">Claude (Opus 4.6)</span>
+            <span class="model-badge chatgpt">GPT-4o</span>
+            <span class="model-badge grok">Grok 4.3</span>
+            <span class="model-badge gemini">Gemini 2.0 Flash</span>
+            <span class="model-badge mistral">Mistral Nemo</span>
+          </div>
+
+          <h3 class="mt-3">Prompt Engineering Variables</h3>
+          <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: var(--text-secondary);">
+            <li><strong>History Depth</strong> — How many previous turns are included in the prompt (0, 2, 3, 5, 10, 20). More history means more context for pattern recognition but also more tokens.</li>
+            <li class="mt-1"><strong>Rules</strong> — Whether the full game rules are included in the system prompt. Some models play better when explicitly told the rules; others do fine without them.</li>
+            <li class="mt-1"><strong>Strategy</strong> — Whether strategic guidance (when to bluff, when to challenge, economic thresholds) is included. Tests whether models benefit from being told <em>how</em> to think about the game.</li>
+          </ul>
+
+          <h3 class="mt-3">Data Collection</h3>
+          <p>
+            Every game produces a full markdown transcript with AI reasoning visible, a CSV row with aggregate statistics per player, and turn-by-turn point tracking. Results are aggregated into model-level win rates, ELO ratings, and behavioral profiles.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Findings -->
+    <section class="section" id="findings">
+      <div class="container">
+        <h2>Key Findings</h2>
+        <div class="card-grid">
+          <div class="card card-gold">
+            <h3>Grok Dominates</h3>
+            <p>
+              Grok 4.3 achieves the highest ELO (1614) and best overall win rate (52%) with rules enabled. Its challenge accuracy (58%) is far above the field, suggesting superior opponent modeling.
+            </p>
+          </div>
+          <div class="card">
+            <h3>GPT-4o: Strong Second</h3>
+            <p>
+              GPT-4o places second with an ELO of 1581 and 39% win rate (rules on, no strategy). It's the most efficient bluffer — 80% bluff success rate — but benefits heavily from having rules in the prompt.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Claude: Honest Player</h3>
+            <p>
+              Claude Opus achieves a respectable 1541 ELO but bluffs less aggressively. Its strength is consistency — solid performance across configurations without dramatic drops.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Rules Matter, Strategy Sometimes Hurts</h3>
+            <p>
+              For most models, including rules in the prompt improves performance. Strategy guidance is mixed — it helps some models but actually hurts Grok's win rate, possibly by making it too predictable.
+            </p>
+          </div>
+        </div>
+        <div class="text-center mt-4">
+          <a href="stats.html" class="btn btn-primary">Explore Full Stats</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>LLMs Play Coup &mdash; An experiment in AI social deduction</p>
+      <p class="mt-1">
+        <a href="https://github.com/Ernizaret/Coup" target="_blank">GitHub Repository</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

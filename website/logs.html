@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Logs — AI Coup Arena</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a href="index.html" class="navbar-brand">AI Coup Arena</a>
+      <button class="navbar-toggle" onclick="document.querySelector('.navbar-links').classList.toggle('open')">&#9776;</button>
+      <ul class="navbar-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="stats.html">Stats</a></li>
+        <li><a href="logs.html" class="active">Game Logs</a></li>
+        <li><span class="nav-placeholder">Play (Coming Soon)</span></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-content">
+    <!-- Index Section -->
+    <section class="section" id="index-section">
+      <div class="container">
+        <h1>Game Log Browser</h1>
+        <p class="text-muted mb-3">
+          Browse all <strong id="total-count">856</strong> AI-vs-AI Coup game transcripts.
+          Each game includes full turn-by-turn action logs with AI reasoning.
+          <span id="filtered-count-text">
+            Showing <strong id="filtered-count">856</strong> games.
+          </span>
+        </p>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+          <div class="filter-group" style="flex:1; max-width:400px;">
+            <label for="search-input">Search</label>
+            <input type="text" id="search-input" class="search-input" placeholder="Search by date, model, player...">
+          </div>
+          <div class="filter-group">
+            <label for="filter-winner">Winner</label>
+            <select id="filter-winner">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-players">Players</label>
+            <select id="filter-players">
+              <option value="">Any</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+              <input type="checkbox" id="filter-review" style="accent-color:#e94560;">
+              Reviews only
+            </label>
+          </div>
+        </div>
+
+        <!-- Log List -->
+        <div class="log-list" id="log-list">
+          <div class="loading">Loading game index...</div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </section>
+
+    <!-- Viewer Section (hidden by default) -->
+    <section class="section" id="viewer-section" style="display:none;">
+      <div class="container">
+        <div class="viewer-back" onclick="closeViewer()">
+          &#x25C0; Back to game list
+        </div>
+
+        <!-- Tabs -->
+        <div class="viewer-tabs">
+          <button class="viewer-tab active" id="tab-log" onclick="showLog()">Game Log</button>
+          <button class="viewer-tab" id="tab-review" onclick="showReview()" style="display:none;">Review</button>
+        </div>
+
+        <!-- Content -->
+        <div class="viewer-panel" id="viewer-content">
+          <div class="loading">Loading...</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>AI Coup Arena &mdash; An experiment in AI social deduction</p>
+      <p class="mt-1">
+        <a href="https://github.com/Ernizaret/Coup" target="_blank">GitHub Repository</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="js/logs.js"></script>
+</body>
+</html>
