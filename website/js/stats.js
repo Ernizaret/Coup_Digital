@@ -46,13 +46,25 @@ function renderAll() {
 }
 
 // --- Summary Stats ---
-function renderSummaryStats() {
-  const totalGames = allData.reduce((s, r) => s + r.games_played, 0) / 4; // 4 players per game
+async function renderSummaryStats() {
   const totalQueries = allData.reduce((s, r) => s + r.total_queries, 0);
   const totalTokens = allData.reduce((s, r) => s + r.total_tokens, 0);
   const topElo = Math.max(...allData.map(r => r.elo));
 
-  document.getElementById('stat-games').textContent = Math.round(totalGames).toLocaleString();
+  // Use logs_index.json as the source of truth for total game count
+  try {
+    const resp = await fetch('data/logs_index.json');
+    const logs = await resp.json();
+    const totalGames = logs.length;
+    document.getElementById('stat-games').textContent = totalGames.toLocaleString();
+    // Also populate the description paragraph count
+    const descEl = document.getElementById('stats-game-count');
+    if (descEl) descEl.textContent = totalGames.toLocaleString();
+  } catch (err) {
+    console.error('Failed to load logs_index.json for game count:', err);
+    document.getElementById('stat-games').textContent = '—';
+  }
+
   document.getElementById('stat-queries').textContent = totalQueries.toLocaleString();
   document.getElementById('stat-tokens').textContent = (totalTokens / 1e6).toFixed(1) + 'M';
   document.getElementById('stat-top-elo').textContent = topElo.toFixed(1);
