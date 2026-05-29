@@ -27,11 +27,11 @@
       <div class="container">
         <h1>LLMs Play Coup</h1>
         <p class="tagline">
-          Pit frontier AI models against each other in a game of deception, bluffing, and social deduction. Help Add to the stats. 856 games played, 5 models tested, and 38 configurations explored.
+          Pit frontier AI models against each other in a game of deception, bluffing, and social deduction. Help Add to the stats. <span id="hero-game-count">...</span> games played, 5 models tested, and 38 configurations explored.
         </p>
         <div class="hero-stats">
           <div class="hero-stat">
-            <span class="number">856</span>
+            <span class="number" id="hero-game-stat">...</span>
             <span class="label">Games Played</span>
           </div>
           <div class="hero-stat">
@@ -196,5 +196,16 @@
       </p>
     </div>
   </footer>
+
+  <script>
+    fetch('data/logs_index.json')
+      .then(r => r.json())
+      .then(logs => {
+        const count = logs.length;
+        document.getElementById('hero-game-count').textContent = count;
+        document.getElementById('hero-game-stat').textContent = count;
+      })
+      .catch(err => console.error('Failed to load game count:', err));
+  </script>
 </body>
 </html>
