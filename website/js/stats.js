@@ -60,10 +60,10 @@ function renderSummaryStats() {
 
 // --- Leaderboard (best config per model) ---
 function renderLeaderboard() {
-  // Group by model, find best config by ELO (with minimum 10 games)
+  // Group by model, find best config by ELO (with minimum 50 games)
   const byModel = {};
   for (const row of allData) {
-    if (row.games_played < 10) continue;
+    if (row.games_played < 50) continue;
     const model = row.model;
     if (!byModel[model] || row.elo > byModel[model].elo) {
       byModel[model] = row;
@@ -174,10 +174,10 @@ function renderCharts() {
 }
 
 function renderWinRateChart() {
-  // Best config per model (min 10 games)
+  // Best config per model (min 50 games)
   const byModel = {};
   for (const row of allData) {
-    if (row.games_played < 10) continue;
+    if (row.games_played < 50) continue;
     if (!byModel[row.model] || row.elo > byModel[row.model].elo) {
       byModel[row.model] = row;
     }
@@ -225,10 +225,10 @@ function renderWinRateChart() {
 }
 
 function renderRadarChart() {
-  // Behavioral profiles for best config per model (min 10 games)
+  // Behavioral profiles for best config per model (min 50 games)
   const byModel = {};
   for (const row of allData) {
-    if (row.games_played < 10) continue;
+    if (row.games_played < 50) continue;
     if (!byModel[row.model] || row.elo > byModel[row.model].elo) {
       byModel[row.model] = row;
     }
@@ -288,7 +288,7 @@ function renderTokenChart() {
   // Token efficiency: avg tokens per query vs win rate (scatter-like via bar)
   const byModel = {};
   for (const row of allData) {
-    if (row.games_played < 10) continue;
+    if (row.games_played < 50) continue;
     if (!byModel[row.model] || row.elo > byModel[row.model].elo) {
       byModel[row.model] = row;
     }
