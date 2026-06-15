@@ -55,7 +55,8 @@ class GameRunner:
     """Runs a complete Coup game with AI agents."""
 
     def __init__(self, agents, prompt_mode="heavy", quiet=False, log=True,
-                 preset_name=None, seed=None, survey_interval=None):
+                 preset_name=None, seed=None, survey_interval=None,
+                 event_callback=None):
         """Initialize with a list of Agent instances in turn order.
 
         Args:
@@ -70,6 +71,10 @@ class GameRunner:
             survey_interval: int or None -- survey AI agents every N full
                 rounds.  0 or None disables the survey.
                 Defaults to DEFAULT_SURVEY_INTERVAL.
+            event_callback: optional callable(event_dict) that receives game
+                events as they occur, for real-time streaming (e.g. WebSocket).
+                Each event_dict has a "type" key ("turn_start", "agent_response",
+                "event", "game_state", "game_over").
         """
         self.agents = agents
         self.prompt_mode = prompt_mode
@@ -80,6 +85,7 @@ class GameRunner:
         self.controller = GameController(seed=seed)
         self.output = ConsoleOutput(quiet=quiet)
         self.log_writer = LogWriter() if log else None
+        self.event_callback = event_callback
         self.event_log = []       # list of {"type": "event"/"speech", ...}
         self._log_cursor = 0      # tracks how far we've consumed controller.log
         self._turn_number = 0
@@ -87,6 +93,14 @@ class GameRunner:
         self._round_turn_count = 0    # turns taken in the current round
         self._last_survey_round = 0   # last round at which a survey was run
         self._points_data = {}    # player name -> list of per-turn points
+
+    def _emit_event(self, event):
+        """Send an event dict to the optional event_callback."""
+        if self.event_callback:
+            try:
+                self.event_callback(event)
+            except Exception:
+                pass  # Don't let callback errors break the game
 
     def run(self):
         """Run the full game from setup to game over.

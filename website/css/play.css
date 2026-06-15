@@ -1,0 +1,658 @@
+/* ============================================
+   AI Coup Arena — Play Page Styles
+   ============================================ */
+
+/* --- Mode Tabs --- */
+.mode-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 2rem;
+}
+
+.mode-tab {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-body);
+}
+
+.mode-tab:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.mode-tab:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.mode-tab.active {
+  background: var(--bg-panel);
+  color: var(--accent-gold);
+  border-color: var(--border-gold);
+}
+
+.mode-tab:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+/* --- Setup Panel --- */
+.setup-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.setup-group {
+  margin-bottom: 1.5rem;
+}
+
+.setup-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-gold);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-heading);
+}
+
+.setup-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.setup-group.compact {
+  flex: 1;
+  min-width: 180px;
+}
+
+.setup-input {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.setup-input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+}
+
+/* --- Agent Selection Buttons --- */
+.agent-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.agent-btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 2px solid;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-body);
+  background: transparent;
+}
+
+.agent-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.agent-btn.claude {
+  color: #e94560;
+  border-color: #e94560;
+}
+.agent-btn.claude:hover {
+  background: rgba(233, 69, 96, 0.15);
+}
+
+.agent-btn.chatgpt {
+  color: #10a37f;
+  border-color: #10a37f;
+}
+.agent-btn.chatgpt:hover {
+  background: rgba(16, 163, 127, 0.15);
+}
+
+.agent-btn.gemini {
+  color: #4285f4;
+  border-color: #4285f4;
+}
+.agent-btn.gemini:hover {
+  background: rgba(66, 133, 244, 0.15);
+}
+
+.agent-btn.grok {
+  color: #64b4ff;
+  border-color: #64b4ff;
+}
+.agent-btn.grok:hover {
+  background: rgba(100, 180, 255, 0.15);
+}
+
+.agent-btn.mistral {
+  color: #ff7832;
+  border-color: #ff7832;
+}
+.agent-btn.mistral:hover {
+  background: rgba(255, 120, 50, 0.15);
+}
+
+.agent-btn.perplexity {
+  color: #b482ff;
+  border-color: #b482ff;
+}
+.agent-btn.perplexity:hover {
+  background: rgba(180, 130, 255, 0.15);
+}
+
+/* --- Player List --- */
+.player-list {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  min-height: 50px;
+}
+
+.player-list-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.2s;
+}
+
+.player-list-item:last-child {
+  border-bottom: none;
+}
+
+.player-list-item:hover {
+  background: rgba(245, 197, 24, 0.05);
+}
+
+.player-list-item .player-order {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 24px;
+  text-align: center;
+}
+
+.player-list-item .player-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.player-list-item .player-model {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.player-list-item .player-controls {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.player-list-item .player-controls button {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.player-list-item .player-controls button:hover {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+/* --- Details / Collapsible --- */
+.setup-details {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.setup-details summary {
+  cursor: pointer;
+  color: var(--accent-gold);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+}
+
+.setup-details summary:hover {
+  color: var(--accent-red);
+}
+
+.per-player-config {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.per-player-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.per-player-card h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.per-player-card .config-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.per-player-card .config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.per-player-card .config-field label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+
+.per-player-card .config-field input,
+.per-player-card .config-field select {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  width: auto;
+  min-width: 80px;
+}
+
+.per-player-card .config-field input[type="checkbox"] {
+  width: auto;
+  min-width: auto;
+  accent-color: var(--accent-red);
+}
+
+.btn-lg {
+  padding: 0.75rem 2.5rem;
+  font-size: 1rem;
+}
+
+/* --- Game Viewer --- */
+.game-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.game-seed-badge {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg-panel);
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+/* --- Player Status Bar --- */
+.player-status-bar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.player-status-card {
+  flex: 1;
+  min-width: 160px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 1rem;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.player-status-card.active-turn {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 15px rgba(245, 197, 24, 0.2);
+}
+
+.player-status-card.eliminated {
+  opacity: 0.4;
+}
+
+.player-status-card .ps-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.player-status-card .ps-model {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.player-status-card .ps-stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.player-status-card .ps-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.player-status-card .ps-stat-value {
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+.player-status-card .ps-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.player-status-card .ps-cards {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.card-icon {
+  width: 24px;
+  height: 34px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.card-icon.hidden {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.card-icon.revealed {
+  background: rgba(233, 69, 96, 0.2);
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+.card-icon.hand {
+  background: rgba(245, 197, 24, 0.15);
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+  width: auto;
+  min-width: 50px;
+  height: 40px;
+  font-size: 0.7rem;
+}
+
+/* --- Game Log --- */
+.game-log-container {
+  margin-top: 1.5rem;
+}
+
+.game-log-container h3 {
+  color: var(--accent-gold);
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+
+.game-log {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.log-entry-event {
+  color: var(--text-secondary);
+  padding: 0.1rem 0;
+}
+
+.log-entry-speech {
+  color: var(--text-primary);
+  padding: 0.1rem 0;
+  border-left: 3px solid var(--accent-red);
+  padding-left: 0.75rem;
+  margin: 0.25rem 0;
+  font-style: italic;
+}
+
+.log-entry-turn {
+  color: var(--accent-gold);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.5rem 0 0.2rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.log-entry-turn:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+.log-entry-action {
+  color: var(--text-primary);
+  padding: 0.1rem 0;
+  font-weight: 600;
+}
+
+.log-entry-action .action-player {
+  color: var(--accent-gold);
+}
+
+.log-entry-action .action-choice {
+  color: var(--accent-red);
+}
+
+/* --- Human Action Panel --- */
+.human-action-panel {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-gold);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0 20px rgba(245, 197, 24, 0.1);
+}
+
+.human-hand {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.human-hand .hand-label {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--accent-gold);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.human-prompt {
+  color: var(--text-primary);
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.human-options {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.human-option-btn {
+  padding: 0.6rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 2px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-body);
+}
+
+.human-option-btn:hover {
+  border-color: var(--accent-gold);
+  background: rgba(245, 197, 24, 0.1);
+  color: var(--accent-gold);
+}
+
+.human-option-btn.primary-action {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.human-option-btn.primary-action:hover {
+  background: var(--accent-red);
+  color: #fff;
+}
+
+/* --- Game Over Panel --- */
+.game-over-panel {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-gold);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  margin-top: 2rem;
+  box-shadow: var(--shadow-glow);
+}
+
+.game-over-panel h2 {
+  color: var(--accent-gold);
+  font-size: 2rem;
+}
+
+.game-over-panel p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+/* --- Connection Status --- */
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.connection-dot.connected {
+  background: #10a37f;
+}
+
+.connection-dot.disconnected {
+  background: var(--accent-red);
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .mode-tabs {
+    flex-direction: column;
+  }
+
+  .mode-tab {
+    border-radius: 0;
+  }
+
+  .mode-tab:first-child {
+    border-radius: 8px 8px 0 0;
+  }
+
+  .mode-tab:last-child {
+    border-radius: 0 0 8px 8px;
+  }
+
+  .setup-row {
+    flex-direction: column;
+  }
+
+  .player-status-bar {
+    flex-direction: column;
+  }
+
+  .player-status-card {
+    min-width: 100%;
+  }
+
+  .human-options {
+    flex-direction: column;
+  }
+
+  .human-option-btn {
+    width: 100%;
+    text-align: center;
+  }
+}

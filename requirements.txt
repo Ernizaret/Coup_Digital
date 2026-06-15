@@ -1,2 +1,5 @@
 openai
 anthropic
+fastapi
+uvicorn[standard]
+websockets

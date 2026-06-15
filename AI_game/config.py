@@ -45,6 +45,17 @@ def load_config():
     with open(path, "r", encoding="utf-8") as f:
         config = json.load(f)
 
+    # Environment variable fallbacks for API keys
+    if not config.get("api_key", "").strip():
+        env_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if env_key:
+            config["api_key"] = env_key
+
+    if not config.get("anthropic_api_key", "").strip():
+        env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if env_key:
+            config["anthropic_api_key"] = env_key
+
     has_claude = _has_claude_agent(config)
     has_non_claude = any(
         not model.startswith("claude")
@@ -55,14 +66,16 @@ def load_config():
     if has_non_claude and not config.get("api_key", "").strip():
         raise ValueError(
             "No OpenRouter API key found in ai_config.json.\n"
-            "Set the \"api_key\" field to your OpenRouter key."
+            "Set the \"api_key\" field to your OpenRouter key,\n"
+            "or set the OPENROUTER_API_KEY environment variable."
         )
 
     # Anthropic key is required when Claude agents are configured
     if has_claude and not config.get("anthropic_api_key", "").strip():
         raise ValueError(
             "No Anthropic API key found in ai_config.json.\n"
-            "Set the \"anthropic_api_key\" field to your Anthropic key.\n"
+            "Set the \"anthropic_api_key\" field to your Anthropic key,\n"
+            "or set the ANTHROPIC_API_KEY environment variable.\n"
             "Claude models are called directly via the Anthropic API."
         )
 

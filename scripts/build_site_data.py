@@ -129,11 +129,24 @@ def build_logs_index_json():
     print(f"Wrote {len(entries)} log entries to {out}")
 
 
-if __name__ == "__main__":
-    print("Building winrates.json...")
+def build_all(quiet=False):
+    """Rebuild all site data JSON files.
+
+    This function can be called programmatically (e.g. by the server after
+    a game completes) or from the command line.
+
+    Args:
+        quiet: if True, suppress print output.
+    """
+    _print = (lambda *a, **k: None) if quiet else print
+    _print("Building winrates.json...")
     build_winrates_json()
-    print()
-    print("Building logs_index.json...")
+    _print()
+    _print("Building logs_index.json...")
     build_logs_index_json()
-    print()
-    print("Done!")
+    _print()
+    _print("Done!")
+
+
+if __name__ == "__main__":
+    build_all()
