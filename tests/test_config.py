@@ -110,6 +110,63 @@ class TestLoadConfig(unittest.TestCase):
                 config = load_config()
             self.assertEqual(config["prompt_mode"], "light")
 
+    def test_env_var_fallback_openrouter(self):
+        """OPENROUTER_API_KEY env var fills in empty api_key."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "ai_config.json")
+            self._write_config({
+                "api_key": "",
+                "agents": {"Gemini": "google/gemini-pro"},
+            }, path)
+            env = {"OPENROUTER_API_KEY": "env-or-key", "ANTHROPIC_API_KEY": ""}
+            with patch("AI_game.config._find_config_path", return_value=path), \
+                 patch.dict(os.environ, env, clear=False):
+                config = load_config()
+            self.assertEqual(config["api_key"], "env-or-key")
+
+    def test_env_var_fallback_anthropic(self):
+        """ANTHROPIC_API_KEY env var fills in empty anthropic_api_key."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "ai_config.json")
+            self._write_config({
+                "api_key": "or-key",
+                "anthropic_api_key": "",
+                "agents": {"Claude": "claude-sonnet-4-20250514"},
+            }, path)
+            env = {"ANTHROPIC_API_KEY": "env-ant-key", "OPENROUTER_API_KEY": ""}
+            with patch("AI_game.config._find_config_path", return_value=path), \
+                 patch.dict(os.environ, env, clear=False):
+                config = load_config()
+            self.assertEqual(config["anthropic_api_key"], "env-ant-key")
+
+    def test_env_var_does_not_override_existing_key(self):
+        """Env var should NOT replace a key that already has a value."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "ai_config.json")
+            self._write_config({
+                "api_key": "file-key",
+                "agents": {"Gemini": "google/gemini-pro"},
+            }, path)
+            env = {"OPENROUTER_API_KEY": "env-or-key"}
+            with patch("AI_game.config._find_config_path", return_value=path), \
+                 patch.dict(os.environ, env, clear=False):
+                config = load_config()
+            self.assertEqual(config["api_key"], "file-key")
+
+    def test_env_var_missing_still_raises(self):
+        """If env var is also empty, validation still raises."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "ai_config.json")
+            self._write_config({
+                "api_key": "",
+                "agents": {"Gemini": "google/gemini-pro"},
+            }, path)
+            env = {"OPENROUTER_API_KEY": "", "ANTHROPIC_API_KEY": ""}
+            with patch("AI_game.config._find_config_path", return_value=path), \
+                 patch.dict(os.environ, env, clear=False):
+                with self.assertRaises(ValueError):
+                    load_config()
+
 
 class TestGetPromptMode(unittest.TestCase):
     def test_returns_mode_from_config(self):

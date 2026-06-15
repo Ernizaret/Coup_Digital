@@ -852,6 +852,38 @@ class TestQueryAgentTimeout(unittest.TestCase):
         self.assertEqual(action, "Income")
 
 
+class TestEventCallback(unittest.TestCase):
+    """Tests for the event_callback parameter and _emit_event method."""
+
+    def test_event_callback_receives_events(self):
+        """When event_callback is provided, _emit_event calls it."""
+        received = []
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        runner = GameRunner(agents, quiet=True, log=False,
+                            event_callback=lambda e: received.append(e))
+        runner._emit_event({"type": "test", "data": "hello"})
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0]["type"], "test")
+
+    def test_no_callback_no_error(self):
+        """When event_callback is None, _emit_event does nothing."""
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        runner = GameRunner(agents, quiet=True, log=False)
+        # Should not raise
+        runner._emit_event({"type": "test"})
+
+    def test_callback_exception_does_not_break_game(self):
+        """If the callback raises, _emit_event swallows the exception."""
+        def bad_callback(event):
+            raise RuntimeError("callback error")
+
+        agents = [FakeAgent("Alice"), FakeAgent("Bob")]
+        runner = GameRunner(agents, quiet=True, log=False,
+                            event_callback=bad_callback)
+        # Should not raise
+        runner._emit_event({"type": "test"})
+
+
 class TestSnapshotPoints(unittest.TestCase):
     """Tests for _snapshot_points method."""
 
